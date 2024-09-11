@@ -17,4 +17,16 @@ connection.connect(err => {
   console.log("Connected to MySQL database!");
 });
 
-module.exports = connection;
+function executeQuery(query, params = []) {
+  return new Promise((resolve, reject) => {
+    connection.query(query, params, (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }
+    });
+  });
+}
+
+module.exports = { executeQuery };

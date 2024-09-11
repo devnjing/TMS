@@ -1,14 +1,21 @@
 <script>
   import { goto } from '$app/navigation';
-  import {getUser} from "$api";
+  import {login} from "$api";
+  import toast from 'svelte-french-toast'
+  
   let username;
   let password;
 
   async function handleLogin () {
-    let userExists = await getUser(username,password);
-    if (userExists) {
-      goto('/applications');
+    try {
+      let userExists = await login(username,password);
+      if (userExists) {
+        goto('/users');
+      }
+    } catch(error) {
+      toast.error(error.message);
     }
+
   }
 </script>
 

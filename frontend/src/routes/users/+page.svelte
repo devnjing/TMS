@@ -1,125 +1,182 @@
 <script>
+  import {onMount} from "svelte";
+  import {getUsersWithGroups, updateUser} from "$api";
+  import {GroupTags} from "$components";
+
   let users = [];
-  let newUser = {name: '', email: '', group: '', password: '', active: false};
-  let username = 'test';
-  let password = 'test';
-  let email = 'test@test.com';
 
 
-  async function addUser() {
-      // TODO: call api
+  onMount(async () => {
+      users = await getUsersWithGroups();
+  })
+
+  function openGroupModal(){
+      alert("open group modal");
+      //TODO: create group modal
   }
 
-  async function loadUsers() {
-    // TODO: call api
+  $: editingRow = null;
+
+
+
+  function toggleEdit(index) {
+    if(editingRow === index) {
+      editingRow = null;
+    } else {
+      editingRow = index;
+    }
+    console.log(editingRow);
   }
 
-  async function updateUser(){
-    //TODO: call api
+  function handleDropdownChange(event, index) {
+        rows[index].accountStatus = event.target.value;
+    }
+
+  async function saveChanges(user) {
+    //TODO: api call to send changes to backend
+    await updateUser(user);
   }
 
-  loadUsers();
+  async function cancelChanges() {
+    //TODO: cancel (refresh data?)
+    users = await getUsersWithGroups();
+  }
+
+  async function addUser(){
+    //TODO: add user
+    users = await getUsersWithGroups();
+  }
+  
 </script>
 
-<div class="table-container">
-  <div class="table-box">
-    <h1>User Management</h1>
-    <table>
-      <thead>
-        <tr>
+<div class="container">
+  <div class="top-bar">
+      <h1>User Management</h1>
+      <button class="add-groups" on:click={openGroupModal}>+ GROUP</button>
+  </div>
+
+  <div class="user-table">
+      <table>
           <th>Name</th>
           <th>Email</th>
-          <th>Group</th>
+          <th>Groups</th>
           <th>Password</th>
-          <th>Active</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>
-            <div class='field'>
-            <input type="text" placeholder="Name" bind:value={newUser.name} style="width: 100%">
-            </div>
-          </td>
-          <td>
-            <div class='field'>
-              <input type="email" placeholder="Email" bind:value={newUser.email} style="width: 100%">
-            </div>
-          </td>
-          <td>
-            <div class="field">
-              <input type="text" placeholder="Group" bind:value={newUser.group} style="width: 100%">
-            </div>
-            
-          </td>
-          <td>
-            <div class="field">
-              <input type="password" placeholder="Password" bind:value={newUser.password} style="width: 100%">
-            </div>
-          </td>
-          <td>
-            <input type="checkbox" bind:group={newUser.active}>
-          </td>
-          <td><button type="submit" on:click={() => addUser()}>Add</button></td>
-        </tr>
-        {#each users as user}
-          <tr>
-            <td>{user.name}</td>
-            <td>{user.email}</td>
-            <td>{user.group}</td>
-            <td>{user.password}</td>
-            <td>{user.active ? 'Yes' : 'No'}</td>
-            <td><button type="submit" on:click={() => updateUser()}>Edit</button></td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+          <th>Status</th>
+          <th>Action</th>
+          {#each users as user, index (user.username)}
+              <tr>
+                  <td>{user.username}</td>
+                  <td contenteditable={editingRow === index} class="editable">{user.email}</td>
+                  <td><GroupTags editTags={editingRow === index} bind:selected={user.groups}/></td>
+                  <td contenteditable={editingRow === index} class="editable">{user.password}</td>
+                  <td contenteditable={editingRow === index}>
+                    <!-- Display dropdown only if the row is in edit mode -->
+                    {#if editingRow === index}
+                        <div class="dropdown active">
+                            <select
+                                bind:value={user.accountStatus}
+                                on:change={(e) => handleDropdownChange(e, index)}
+                            >
+                                <option value="active">active</option>
+                                <option value="disabled">disabled</option>
+                            </select>
+                        </div>
+                    {:else}
+                        {user.accountStatus}
+                    {/if}
+                </td>
+                <td>
+                  {#if editingRow === index}
+                    <button class="save-button" on:click={() => {toggleEdit(index); saveChanges(user)}}>Save Changes</button>
+                    <button class="cancel-button" on:click={() => {toggleEdit(index); cancelChanges()}}>Cancel</button>
+                  {:else}
+                    <button class="edit-button" on:click={() => toggleEdit(index)}>Edit</button>
+                  {/if}
+                </td>
+          {/each}
+      </table>
   </div>
 </div>
 
 <style>
-  .table-container {
-    width: 100%;
-    margin: auto;
+  .container {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: auto;
   }
 
-  .table-box {
-    align-items: center;
-    width: 100%;
-    margin: auto;
+  .top-bar {
+      display: flex;
+      justify-content: space-between;
+      margin: 20px;
   }
 
+
+  button {
+      padding: 10px;
+      color: white;
+      background-color: black;
+      border: none;
+      cursor: pointer;
+  }
+
+  button:hover {
+      background-color: rgba(0,0,0,0.8);
+  }
+  button:active {
+      background-color: rgba(0,0,0,0.5);
+  }
+  
   table {
-    border: 0px;
     border-collapse: collapse;
     width: 100%;
   }
-
-  
+  th {
+    background-color: lightblue;
+  }
 
   th, td {
     padding: 8px;
+    text-align: left;
+    width: 200px;
+    
+  }
+  
+  td {
+    position: relative;
+    overflow: visible;
+    border: solid 1px transparent;
   }
 
-  th {
-    background-color: #B6D0E2;
-    color: white;
+  td[contenteditable="true"] {
+    background-color: #f0f0f0;
+    border: solid 1px black;
   }
 
-  .field {
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    padding: 10px;
-    margin: 12px;
-    background-color: #D3D3D3;
+
+  .editable {
+    position: relative;
+   
   }
 
-  input[type="text"], input[type="password"], input[type="email"] {
-    width: 100%;
-    border: none;
-    outline: none;
-    background-color: #D3D3D3;
-  }
+  .dropdown {
+        display: none;
+        position: relative;
+        background-color: white;
+    }
 
+    select {
+      width: 100%;
+      font-size: medium;
+    }
+
+    .dropdown.active {
+        display: block;
+    }
+
+    .dropdown option:hover {
+      background-color: #ccc;
+    }
+  
 </style>
