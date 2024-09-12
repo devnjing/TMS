@@ -33,7 +33,7 @@
   <span class="tag">
     {tag}
     {#if editTags}
-      <button class="remove-tag" on:click={() => removeTag(tag)}>X</button>
+      <button class="remove-tag" on:click={() => removeTag(tag)}>x</button>
     {/if}
   </span>
   {/each}
@@ -54,17 +54,23 @@
   }
 
   .tag {
-    background-color: #eee;
+    background-color: #0095ff;
+    color: white;
     padding: 5px 10px 5px 10px;
     border-radius: 50px;
     margin: 5px;
     font-size: small;
   }
 
+  .tag:hover {
+    background-color: #FF474C;
+  }
+
   .remove-tag {
     border: none;
     cursor: pointer;
     font-size: small;
+    background-color: transparent;
   }
 
   .select-tags {

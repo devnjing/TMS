@@ -16,9 +16,28 @@
       selected = [...selected, option];
     }
   }
+
+	function clickOutside(element, callbackFunction) {
+		function onClick(event) {
+			if (!element.contains(event.target)) {
+				callbackFunction();
+			}
+		}
+		
+		document.body.addEventListener('click', onClick);
+		
+		return {
+			update(newCallbackFunction) {
+				callbackFunction = newCallbackFunction;
+			},
+			destroy() {
+				document.body.removeEventListener('click', onClick);
+			}
+		}
+	}
 </script>
 
-<div class="dropdown">
+<div class="dropdown" use:clickOutside={() => (isOpen = false)}>
   <button class="dropdown-toggle" on:click={toggle}>
     {dropdownText}
   </button>
@@ -50,6 +69,7 @@
   }
 
   .dropdown-menu {
+    width: 200px;
     position: absolute;
     top: 100%;
     left: 0;
