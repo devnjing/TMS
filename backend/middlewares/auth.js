@@ -1,41 +1,35 @@
 const jwt = require("jsonwebtoken");
 const { executeQuery } = require("../db");
 
-// check if user is authenticated
-exports.isAuthenticatedUser = async (req, res, next) => {
-  let token;
-  if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
-    token = req.headers.authorization.split(" ")[1];
-  }
-
-  if (!token) {
-    return res.status(401).json({ error: "Please login to access this resource" });
-  }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  req.user = await getUserByUname(decoded.username);
-
-  next();
-};
-
-//handling users roles
-exports.authorizeRoles = (...roles) => {
+// is user Authorized
+exports.isAuthorizedUser = (...roles) => {
   return async (req, res, next) => {
-    const user = req.user;
+    try {
+      // check if user is authenticated with token
+      const decoded = await decodeToken(req.cookies.token);
+      req.user = await getUserByUname(decoded.username);
 
-    // check if user is active
-    if (!user.active) {
-      return res.status(403).json({ error: "User is not active" });
-    }
+      // check if user exists
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
 
-    //use checkGroup function to check for role
-    for (let role of roles) {
-      if (await checkGroup(user.username, role)) {
+      // check if user is active
+      if (!req.user.accountStatus) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      //use checkGroup function to check for role
+      const hasRole = roles.some(role => checkGroup(req.user.username, role));
+      if (hasRole) {
         return next();
       }
-    }
 
-    return res.status(403).json({ error: "Unauthorized role" });
+      res.status(403).json({ error: "Unauthorized" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Unauthorized" });
+    }
   };
 };
 
@@ -51,7 +45,6 @@ async function getUserByUname(username) {
     }
   } catch (error) {
     console.error(error);
-    return null;
   }
 }
 
@@ -64,9 +57,19 @@ async function checkGroup(username, groupname) {
   } catch (error) {
     return error;
   }
-  console.log("query results", results);
   if (results.length < 1) {
     return false;
   }
   return true;
+}
+
+async function decodeToken(token) {
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      return decoded;
+    } catch (error) {
+      console.log(error);
+    }
+  }
 }

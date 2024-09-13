@@ -1,10 +1,17 @@
 <script>
   import { page } from "$app/stores";
   import {Modal} from "$components";
-	import { onMount } from "svelte";
-  import {getUser,updateUser} from "$api";
+  import { onMount } from "svelte";
+  import {toast} from "svelte-sonner";
+  import {getUser,updateUser,checkAdmin} from "$api";
 
-  export let isAdmin = true;
+  let isAdmin = false;
+
+  onMount(async () => {
+    isAdmin = await checkAdmin();
+    currentUser = await getUser();
+  })
+
   let showProfileModal = false;
 
 
@@ -14,19 +21,17 @@
     password: '',
   };
 
-  onMount(async() => {
-    currentUser = await getUser('admin');
-  })
-
-
-  function toggleProfileModal() {
+  async function toggleProfileModal() {
     showProfileModal = !showProfileModal;
-    console.log(showProfileModal);
+    currentUser = await getUser();
   }
 
   async function updateUserProfile(){
-    await updateUser(currentUser);
-    currentUser = await getUser('admin');
+    const response = await updateUser(currentUser);
+    if (response.status === 200) {
+      toast.success("Profile updated successfully");
+    }
+    currentUser = await getUser();
   }
 </script>
 
@@ -35,7 +40,7 @@
     <h1>Edit Profile</h1>
     <div class="edit-profile-form">    
       <label for="username">Username:</label>
-      <input type="text" name="username" bind:value={currentUser.username} disabled/>
+      <input type="text" name="username" bind:value={currentUser.username} readonly/>
       <label for="email">Email:</label>
       <input type="email" name="email" bind:value={currentUser.email} placeholder=""/>
       <label for="password">Password:</label>
@@ -49,7 +54,7 @@
 </Modal>
 
 <div class="navbar">
-  <h1>Hello User</h1>
+  <h1>Hello {currentUser.username}</h1>
   <nav>
     <a href="/applications" class:active={$page.url.pathname === "/applications"}>Applications</a>
     {#if isAdmin}

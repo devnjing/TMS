@@ -13,10 +13,6 @@
   onMount(async () => {
       users = await getUsersWithGroups();
   })
-
-
-  $: editingRow = null;
-
   let newUser = {
     username: '',
     email: '',
@@ -24,9 +20,13 @@
     user_group: [],
     accountStatus: 'active'
   };
+
   let newGroup = "";
 
+  $: editingRow = null;
+
   async function submitForm() {
+    console.log(newUser);
     await createUser(newUser);
     users = await getUsersWithGroups();
     newUser = {

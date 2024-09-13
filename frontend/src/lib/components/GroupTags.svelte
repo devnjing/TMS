@@ -70,6 +70,7 @@
     border: none;
     cursor: pointer;
     font-size: small;
+    color: white;
     background-color: transparent;
   }
 

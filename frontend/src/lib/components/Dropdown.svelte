@@ -87,10 +87,11 @@
   }
 
   .dropdown-menu li.selected {
-    background-color: #f0f0f0;
+    background-color: #0095ff;
+    color: white;
   }
 
   .dropdown-menu li:hover {
-    background-color: #f0f0f0;
+    background-color: rgba(0, 0, 0,0, 0.8);
   }
 </style>
