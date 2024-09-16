@@ -2,36 +2,84 @@
   import { page } from "$app/stores";
   import {Modal} from "$components";
   import { onMount } from "svelte";
+  import {api} from "$api";
+  import {goto} from "$app/navigation";
   import {toast} from "svelte-sonner";
-  import {getUser,updateUser,checkAdmin} from "$api";
 
   let isAdmin = false;
-
-  onMount(async () => {
-    isAdmin = await checkAdmin();
-    currentUser = await getUser();
-  })
-
-  let showProfileModal = false;
-
-
   let currentUser = {
     username: '',
     email: '',
     password: '',
   };
+  let showProfileModal = false;
+  
+
+  onMount(async () => {
+    // check if admin
+    try {
+		const response = await api.get('/api/user/is-admin', { withCredentials: true });
+		isAdmin = response.data.isAdmin;
+	} catch (error) {
+		toast.error(error.response.data.error);
+	}
+  // get user data
+    try {
+		const response = await api.get('/api/user', { withCredentials: true });
+		currentUser = response.data.user;
+	} catch (error) {
+		toast.error(error.response.data.error);
+	}
+  })
 
   async function toggleProfileModal() {
     showProfileModal = !showProfileModal;
-    currentUser = await getUser();
+    try {
+		const response = await api.get('/api/user', { withCredentials: true });
+		currentUser = response.data.user;
+	} catch (error) {
+		if (error.status === 401) {
+			goto('/login');
+		}
+		toast.error(error.response.data.error);
+	}
   }
 
-  async function updateUserProfile(){
-    const response = await updateUser(currentUser);
-    if (response.status === 200) {
-      toast.success("Profile updated successfully");
+  async function handleEditProfile(){
+    console.log("updating profile");
+    if (!currentUser.username || !currentUser.password) {
+		toast.error('Please fill in all fields');
+		return;
+	  }
+    try {
+      const response = await api.post('/api/user', { user: currentUser }, { withCredentials: true });
+      console.log("user update");
+      toast.success(response.data.success);
+    } catch (error) {
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
     }
-    currentUser = await getUser();
+      try {
+      const response = await api.get('/api/user', { withCredentials: true });
+      currentUser = response.data.user;
+    } catch (error) {
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
+    toggleProfileModal();
+  }
+
+  async function handleLogout() {
+    try {
+      const response = await api.get('/api/logout', { withCredentials: true });
+      goto('/login');
+    } catch (error) {
+      toast.error(error.response.data.error);
+    }
   }
 </script>
 
@@ -47,7 +95,7 @@
       <input type="password" name="password" bind:value={currentUser.password} placeholder=""/>
     </div>
     <div class="edit-profile-buttons">
-      <button on:click={updateUserProfile}>Update</button>
+      <button on:click={handleEditProfile}>Update</button>
       <button on:click={toggleProfileModal}>Cancel</button>
     </div>
   </div>
@@ -61,7 +109,10 @@
       <a href="/users" class:active={$page.url.pathname === "/users"}>User Management</a>
     {/if}
   </nav>
-  <button on:click={toggleProfileModal}>Edit Profile</button>
+  <div>
+    <button on:click={toggleProfileModal}>Edit Profile</button>
+    <button on:click={handleLogout}>Logout</button>
+  </div>
 </div>
 
 <style>
@@ -95,8 +146,8 @@
     text-decoration: none;
     padding: 0;
     cursor: pointer;
-    text-decoration: underline;
     font-size: large;
+    margin: 5px;
   }
 
   .edit-profile-modal {

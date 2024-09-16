@@ -1,14 +1,22 @@
 <script>
 	import { onMount } from "svelte";
   import Dropdown from "./Dropdown.svelte";
-  import {getAllGroups} from '$api';
+  import {api} from '$api';
 
   export let selected = [];
   export let editTags = false;
   let options = [];
 
   onMount(async () => {
-    options = await getAllGroups();
+    try {
+		const response = await api.get('/api/groups', { withCredentials: true });
+		options = response.data;
+	} catch (error) {
+		if (error.status === 401) {
+			goto('/login');
+		}
+		toast.error(error.response.data.error);
+	}
   })
 
 
@@ -20,13 +28,25 @@
     selected = selected.filter(t => t !== tag);
   }
 
+  async function refreshOptions() {
+    try {
+		const response = await api.get('/api/groups', { withCredentials: true });
+		options = response.data;
+	} catch (error) {
+		if (error.status === 401) {
+			goto('/login');
+		}
+		toast.error(error.response.data.error);
+	}
+  }
+
 </script>
 
 <div class="tags-container">
 
   {#if editTags}
     <div class="select-tags">
-      <Dropdown {options} bind:selected={selected}/>
+      <Dropdown {options} bind:selected={selected} on:open={() => (refreshOptions())} on:close={() => (isOpen = false)}/>
     </div>
   {/if}
   {#each reactiveSelected as tag}
@@ -60,11 +80,13 @@
     border-radius: 50px;
     margin: 5px;
     font-size: small;
+    display: flex;
+    align-items: center;
   }
 
-  .tag:hover {
-    background-color: #FF474C;
-  }
+  .tag > * {
+  flex: 1;
+}
 
   .remove-tag {
     border: none;
@@ -72,6 +94,7 @@
     font-size: small;
     color: white;
     background-color: transparent;
+    margin-left: 5px;
   }
 
   .select-tags {

@@ -1,44 +1,58 @@
 const { executeQuery } = require("../db");
 const bcrypt = require("bcrypt");
+const e = require("express");
 const jwt = require("jsonwebtoken");
 
-// login user -> post api/login/
+// POST api/login
 exports.loginUser = async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    // check if empty
-    if (!username || !password) {
-      return res.status(400).json({ error: "Please provide username and password" });
-    }
+    // cookie options
+    const options = {
+      expires: new Date(Date.now() + 60 * 60 * 1000),
+      httpOnly: true,
+      samesite: "None"
+    };
 
+    // if admin
+
+    if (username === "admin") {
+      const isPasswordValid = bcrypt.compare(password, process.env.ADMIN_PASSWORD);
+      if (!isPasswordValid) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      // create token
+      const token = jwt.sign({ username, ipAddress: req.socket.remoteAddress, userAgent: req.headers["user-agent"] }, process.env.JWT_SECRET, {
+        expiresIn: process.env.EXPIRY
+      });
+
+      // send token with cookie
+      res.status(200).cookie("token", token, options).json({
+        success: "Logged in successfully",
+        token
+      });
+    }
     // find user by username
     const user = await getUserByUname(username);
     if (!user) {
-      return res.status(401).json({ error: "Invalid username or password" });
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     // Bcrypt to check password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ error: "Invalid username or password" });
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     // create token
     const token = jwt.sign({ username, ipAddress: req.socket.remoteAddress, userAgent: req.headers["user-agent"] }, process.env.JWT_SECRET, {
-      expiresIn: "1h"
+      expiresIn: process.env.EXPIRY
     });
-
-    // cookie options
-    const options = {
-      expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      httpOnly: true,
-      samesite: "None"
-    };
 
     // send token with cookie
     res.status(200).cookie("token", token, options).json({
-      success: true,
+      success: "Logged in successfully",
       token
     });
   } catch (error) {
@@ -46,19 +60,24 @@ exports.loginUser = async (req, res) => {
   }
 };
 
-// api/is-admin
+exports.logoutUser = async (req, res) => {
+  res.clearCookie("token");
+  res.status(200).json({ success: "Logged out successfully" });
+};
+
+// GET api/is-admin
 exports.isAdmin = async (req, res) => {
   try {
-    let decoded = await decodeToken(req.cookies.token);
-    let isAdmin = await checkGroup(decoded.username, "admin");
-    res.json({ isAdmin });
+    const token = req.cookies.token;
+    const { username } = await decodeToken(token);
+    const userIsAdmin = await checkGroup(username, "admin");
+    res.json({ isAdmin: userIsAdmin });
   } catch (error) {
-    console.log(error);
     res.status(500).json({ error: "Failed to get user" });
   }
 };
 
-// get api/user
+// GET api/user
 exports.getUser = async (req, res) => {
   try {
     let decoded = await decodeToken(req.cookies.token); // get username from token
@@ -69,213 +88,233 @@ exports.getUser = async (req, res) => {
   }
 };
 
-// update user -> post /api/users/update/
-exports.updateUser = async (req, res) => {
-  let error;
-  try {
-    const { user } = req.body;
+// POST api/user
+exports.updateProfile = async (req, res) => {
+  const { user } = req.body;
 
+  // get user's old data
+  const oldUser = await getUserByUname(user.username);
+
+  // start transaction
+  await executeQuery("START TRANSACTION");
+  let needRollback = false;
+  try {
+    // compare old and new email
+    if (user.email && !(oldUser.email === user.email)) {
+      // check email format
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(user.email)) {
+        needRollback = true;
+        return res.status(400).json({ error: "Email is not valid" });
+      }
+      let query = "UPDATE accounts SET email = ? WHERE username = ?";
+      let params = [user.email, user.username];
+      await executeQuery(query, params);
+    }
+
+    // compare old and new password
+    if (!(oldUser.password === user.password)) {
+      // check password criteria
+      const passwordRegex = /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[^\da-zA-Z]).{8,10}$/;
+      if (!passwordRegex.test(user.password)) {
+        needRollback = true;
+        return res.status(400).json({ error: "Password must be a minimum length of 8 characters and a maximum length of 10 characters, and must contain at least one letter, one number, and one special character" });
+      }
+      let hashedPassword = await bcrypt.hash(user.password, 10);
+      let query = "UPDATE accounts SET password = ? WHERE username = ?";
+      let params = [hashedPassword, user.username];
+      await executeQuery(query, params);
+    }
+  } catch (error) {
+    needRollback = true;
+    console.log(error);
+    return res.status(500).json({ error: "Failed to update user" });
+  } finally {
+    if (needRollback) {
+      await executeQuery("ROLLBACK");
+    } else {
+      await executeQuery("COMMIT");
+      return res.status(200).json({ success: "Profile updated successfully" });
+    }
+  }
+};
+
+// POST /api/users/update
+exports.updateUser = async (req, res) => {
+  const { user } = req.body;
+
+  // get user's old data
+  const oldUser = await getUserByUname(user.username);
+
+  // start transaction
+  await executeQuery("START TRANSACTION");
+
+  // compare old and new email
+  if (!(oldUser.email === user.email)) {
     // check email format
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(user.email)) {
       return res.status(400).json({ error: "Email is not valid" });
     }
-
-    // start transaction
-    await executeQuery("START TRANSACTION", []);
-
-    // update email and status
-    let query = "UPDATE accounts SET email = ?, accountStatus = ? WHERE username = ?";
-    let params = [user.email, user.accountStatus, user.username];
+    let query = "UPDATE accounts SET email = ? WHERE username = ?";
+    let params = [user.email, user.username];
     try {
       await executeQuery(query, params);
     } catch (error) {
-      await executeQuery("ROLLBACK", []);
-      return res.status(500).json({ error: "Failed to update email and status" });
+      return res.status(500).json({ error: "Failed to update user" });
     }
+  }
 
-    // bcrypt to hash password
-    const hashedPassword = await bcrypt.hash(user.password, 10);
-
-    // query user by username to compare password
-    query = "SELECT password FROM accounts WHERE username = ?";
-    params = [user.username];
-    let result = await executeQuery(query, params);
-    if (result[0].password === user.password) {
-      // password matches, skip update
-    } else {
-      // check password criteria
-      const alphabetRegex = /[a-zA-Z]/;
-      const numberRegex = /[0-9]/;
-      const specialCharRegex = /[^a-zA-Z0-9]/;
-      const password = user.password;
-      if (!(alphabetRegex.test(password) && numberRegex.test(password) && specialCharRegex.test(password) && password.length >= 8 && password.length <= 10)) {
-        return res.status(400).json({ error: "Password must be a minimum length of 8 characters and a maximum length of 10 characters, and must contain at least one letter, one number, and one special character" });
-      }
-
-      // update password in database
-      query = "UPDATE accounts SET password = ? WHERE username = ?";
-      params = [hashedPassword, user.username];
-      try {
-        await executeQuery(query, params);
-      } catch (error) {
-        await executeQuery("ROLLBACK", []);
-        return res.status(500).json({ error: "Failed to update password" });
-      }
+  // compare old and new accountStatus
+  if (!(oldUser.accountStatus === user.accountStatus)) {
+    let query = "UPDATE accounts SET accountStatus = ? WHERE username = ?";
+    let params = [user.accountStatus, user.username];
+    try {
+      await executeQuery(query, params);
+    } catch (error) {
+      return res.status(500).json({ error: "Failed to update user" });
     }
+  }
 
-    // update groups
-    if (user.user_group) {
-      query = "SELECT user_group FROM usergroup WHERE username = ?";
-      params = [user.username];
-      let groups = await executeQuery(query, params);
-      const existingGroups = groups.map(group => group.user_group);
-      const newGroups = user.groups.filter(group => !existingGroups.includes(group));
-      const groupsToDelete = existingGroups.filter(group => !user.groups.includes(group));
-      try {
-        await Promise.all(newGroups.map(group => executeQuery("INSERT INTO usergroup (username, user_group) VALUES (?, ?)", [user.username, group])));
-        await Promise.all(groupsToDelete.map(group => executeQuery("DELETE FROM usergroup WHERE username = ? AND user_group = ?", [user.username, group])));
-      } catch (error) {
-        await executeQuery("ROLLBACK", []);
-        return res.status(500).json({ error: "Failed to update groups" });
-      }
+  // compare old and new password
+  if (!(oldUser.password === user.password)) {
+    // check password criteria
+    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[^\da-zA-Z]).{8,10}$/;
+    if (!passwordRegex.test(user.password)) {
+      return res.status(400).json({ error: "Password must be a minimum length of 8 characters and a maximum length of 10 characters, and must contain at least one letter, one number, and one special character" });
     }
+    let hashedPassword = await bcrypt.hash(user.password, 10);
+    let query = "UPDATE accounts SET password = ? WHERE username = ?";
+    let params = [hashedPassword, user.username];
+    try {
+      await executeQuery(query, params);
+    } catch (error) {
+      return res.status(500).json({ error: "Failed to update user" });
+    }
+  }
 
-    // commit transaction
-    await executeQuery("COMMIT", []);
-    res.json({ success: true, message: "User updated successfully" });
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: "Failed to update user" });
+  // update groups
+  if (user.groups) {
+    const existingGroups = (await executeQuery("SELECT user_group FROM usergroup WHERE username = ?", [user.username])).map(group => group.user_group);
+    const groupsToAdd = user.groups.filter(group => !existingGroups.includes(group));
+    const groupsToRemove = existingGroups.filter(group => !user.groups.includes(group));
+    try {
+      await Promise.all(groupsToAdd.map(group => executeQuery("INSERT INTO usergroup (username, user_group) VALUES (?, ?)", [user.username, group])));
+      await Promise.all(groupsToRemove.map(group => executeQuery("DELETE FROM usergroup WHERE username = ? AND user_group = ?", [user.username, group])));
+      await executeQuery("COMMIT");
+      res.json({ success: "Details updated successfully" });
+    } catch (error) {
+      await executeQuery("ROLLBACK");
+      return res.status(500).json({ error: "Failed to update user" });
+    }
+  } else {
+    try {
+      await executeQuery("DELETE FROM usergroup WHERE username = ?", [user.username]);
+      await executeQuery("COMMIT");
+      res.json({ success: "Details updated successfully" });
+    } catch (error) {
+      await executeQuery("ROLLBACK");
+      return res.status(500).json({ error: "Failed to update user" });
+    }
   }
 };
 
-// get all users -> get /api/users/
-exports.getUsers = async (req, res) => {
-  // get accounts table
-  let query = "SELECT * FROM accounts";
-  try {
-    let results = await executeQuery(query);
-    res.status(200).json({ users: results });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to get users" });
-  }
-};
-
-// get all users with groups -> get /api/users/groups/
+// GET /api/users/groups
 exports.getUsersWithGroups = async (req, res) => {
-  // get accounts table
-  let query = "SELECT * FROM accounts";
+  let getUsersQuery = "SELECT * FROM accounts";
+  let getUserGroupsQuery = "SELECT * FROM usergroup";
+
   try {
-    let users = await executeQuery(query);
-    query = "SELECT * FROM usergroup";
-    let groups = await executeQuery(query);
+    let users = await executeQuery(getUsersQuery);
+    let groups = await executeQuery(getUserGroupsQuery);
+
     users.forEach(user => {
       user.groups = groups.filter(group => group.username === user.username).map(group => group.user_group);
     });
+
     res.status(200).json({ users });
   } catch (error) {
     res.status(500).json({ error: "Failed to get users" });
   }
 };
-// add user -> post api/users/
-exports.addUser = async (req, res) => {
-  const { username, password, email, user_group, accountStatus } = req.body;
 
-  // find user by username to check if username exists
-  const user = await getUserByUname(username);
-  if (user) {
+// POST api/users
+exports.addUser = async (req, res) => {
+  const { user } = req.body;
+
+  // check if username exists
+  const existingUser = await getUserByUname(user.username);
+  if (existingUser) {
     return res.status(400).json({ error: "User already exists" });
   }
 
+  // check email format
+  if (user.email) {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(user.email)) {
+      return res.status(400).json({ error: "Email is not valid" });
+    }
+  }
+
   // check password criteria
-  const alphabetRegex = /[a-zA-Z]/;
-  const numberRegex = /[0-9]/;
-  const specialCharRegex = /[^a-zA-Z0-9]/;
-  if (!(alphabetRegex.test(password) && numberRegex.test(password) && specialCharRegex.test(password) && password.length >= 8 && password.length <= 10)) {
+  const passwordRegex = /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[^\da-zA-Z]).{8,10}$/;
+  if (!passwordRegex.test(user.password)) {
     return res.status(400).json({ error: "Password must be a minimum length of 8 characters and a maximum length of 10 characters, and must contain at least one letter, one number, and one special character" });
   }
 
   // bcrypt to hash password
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const hashedPassword = await bcrypt.hash(user.password, 10);
 
-  // add user to database
-  var query = "INSERT INTO accounts (username, password, email, accountStatus) VALUES (?, ?, ?, ?)";
-  var params = [username, hashedPassword, email, accountStatus];
   try {
+    await executeQuery("START TRANSACTION");
+
+    // add user to database
+    var query = "INSERT INTO accounts (username, password, email, accountStatus) VALUES (?, ?, ?, ?)";
+    var params = [user.username, hashedPassword, user.email, user.accountStatus];
     await executeQuery(query, params);
+
+    // add user groups to user_group table
+    if (user.user_group) {
+      for (const group of user.user_group) {
+        query = "INSERT INTO usergroup (username, user_group) VALUES (?, ?)";
+        params = [user.username, group];
+        await executeQuery(query, params);
+      }
+    }
+
+    await executeQuery("COMMIT");
+    res.json({ success: "User added successfully" });
   } catch (error) {
+    await executeQuery("ROLLBACK");
     res.status(500).json({ error: "Failed to add user" });
   }
-
-  // add user to user_group table
-  query = "INSERT INTO usergroup (username, user_group) VALUES (?, ?)";
-  params = [username, user_group];
-  try {
-    await executeQuery(query, params);
-    res.json({ success: true, message: "User added successfully" });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to add user to user_group table" });
-  }
 };
 
-// change password -> post /api/users/password/
-exports.changePassword = async (req, res) => {
-  const { username, password } = req.body;
-
-  // find user by username
-  const user = await getUserByUname(username);
-  if (!user) {
-    return res.status(404).json({ error: "User not found" });
-  }
-
-  // check password criteria
-  const alphabetRegex = /[a-zA-Z]/;
-  const numberRegex = /[0-9]/;
-  const specialCharRegex = /[^a-zA-Z0-9]/;
-  if (!(alphabetRegex.test(password) && numberRegex.test(password) && specialCharRegex.test(password) && password.length >= 8) && password.length <= 10) {
-    return res.status(400).json({ error: "Password must be a minimum length of 8 characters and a maximum length of 10 characters, and must contain at least one letter, one number, and one special character" });
-  }
-
-  // bcrypt to hash password
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  // update password in database
-  var query = "UPDATE accounts SET password = ? WHERE username = ?";
-  var params = [hashedPassword, username];
-  try {
-    await executeQuery(query, params);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to update password" });
-  }
-
-  res.json({ success: true, message: "Password updated successfully" });
-};
-
-// get all groups -> get /api/groups/
+// Get api/groups
 exports.getAllGroups = async (req, res) => {
-  let query = "SELECT DISTINCT user_group FROM usergroup";
+  const query = "SELECT DISTINCT user_group FROM usergroup";
   try {
-    const results = await executeQuery(query);
-    res.json(results.map(group => group.user_group));
+    const groups = await executeQuery(query);
+    res.json(groups.map(({ user_group }) => user_group)); // return only user_group column as array
   } catch (error) {
     res.status(500).json({ error: "Failed to get groups" });
   }
 };
 
-// add group -> post /api/groups/
+// POST /api/groups
 exports.addGroup = async (req, res) => {
-  const { user_group } = req.body;
+  const { newGroup } = req.body;
   var query = "INSERT INTO usergroup (user_group) VALUES (?)";
-  var params = [user_group];
+  var params = [newGroup];
   try {
     await executeQuery(query, params);
-    res.json({ success: true, message: "Group added successfully" });
+    res.json({ success: "Group added successfully" });
   } catch (error) {
     res.status(500).json({ error: "Failed to add group" });
   }
 };
 
+/*------------------------------------------------------------------------------------*/
 // query to get user by username
 async function getUserByUname(username) {
   const query = "SELECT * FROM accounts WHERE username = ?";
@@ -305,17 +344,15 @@ async function decodeToken(token) {
   }
 }
 
-async function checkGroup(username, groupname) {
-  let query = "SELECT * FROM usergroup WHERE username = ? AND user_group = ?";
-  let params = [username, groupname];
-  let results;
+// check if user is in group
+async function checkGroup(username, groupName) {
+  const query = "SELECT * FROM usergroup WHERE username = ? AND user_group = ?";
+  const params = [username, groupName];
   try {
-    results = await executeQuery(query, params);
+    const results = await executeQuery(query, params);
+    return results.length > 0;
   } catch (error) {
-    return error;
-  }
-  if (results.length < 1) {
+    console.error(error);
     return false;
   }
-  return true;
 }

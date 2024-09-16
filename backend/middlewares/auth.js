@@ -2,65 +2,94 @@ const jwt = require("jsonwebtoken");
 const { executeQuery } = require("../db");
 
 // is user Authorized
-exports.isAuthorizedUser = (...roles) => {
+exports.isAuthorizedUser = (...groups) => {
   return async (req, res, next) => {
+    const token = req.cookies.token;
     try {
-      // check if user is authenticated with token
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      // decode token and find user
       const decoded = await decodeToken(req.cookies.token);
-      req.user = await getUserByUname(decoded.username);
-
-      // check if user exists
+      req.user = await getUserByUsername(decoded.username);
       if (!req.user) {
+        res.clearCookie("token");
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      //verify ip
+      const ip = decoded.ipAddress;
+      const requestIp = req.header["x-forwarded-for"] || req.connection.remoteAddress;
+      if (ip !== requestIp) {
+        res.clearCookie("token");
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      //verify browser
+      const browser = decoded.userAgent;
+      const requestBrowser = req.headers["user-agent"];
+      if (browser !== requestBrowser) {
+        res.clearCookie("token");
         return res.status(401).json({ error: "Unauthorized" });
       }
 
       // check if user is active
-      if (!req.user.accountStatus) {
-        return res.status(403).json({ error: "Unauthorized" });
+      if (req.user.accountStatus === "disabled") {
+        res.clearCookie("token");
+        return res.status(401).json({ error: "Unauthorized" });
       }
 
-      //use checkGroup function to check for role
-      const hasRole = roles.some(role => checkGroup(req.user.username, role));
-      if (hasRole) {
-        return next();
+      //use checkGroup function to check for group
+      let hasGroup = false;
+      for (const group of groups) {
+        if (await checkGroup(req.user.username, group)) {
+          hasGroup = true;
+          break;
+        }
       }
-
-      res.status(403).json({ error: "Unauthorized" });
+      if (hasGroup) {
+        next();
+      } else {
+        res.clearCookie("token");
+        res.status(401).json({ error: "Unauthorized" });
+      }
     } catch (error) {
       console.error(error);
-      res.status(500).json({ error: "Unauthorized" });
+      res.clearCookie("token");
+      res.status(401).json({ error: "Unauthorized" });
     }
   };
 };
 
-async function getUserByUname(username) {
+async function getUserByUsername(username) {
   const query = "SELECT * FROM accounts WHERE username = ?";
   const params = [username];
+
   try {
     const results = await executeQuery(query, params);
-    if (results.length < 1) {
+
+    if (results.length === 0) {
       return null;
-    } else {
-      return results[0];
     }
+
+    return results[0];
   } catch (error) {
-    console.error(error);
+    console.log(error);
+    return null;
   }
 }
 
+/*------------------------------------------------------------functions-------------------------------------------------------------------------------------------------*/
 async function checkGroup(username, groupname) {
-  let query = "SELECT * FROM usergroup WHERE username = ? AND user_group = ?";
-  let params = [username, groupname];
-  let results;
+  const query = "SELECT * FROM usergroup WHERE username = ? AND user_group = ?";
+  const params = [username, groupname];
   try {
-    results = await executeQuery(query, params);
+    const results = await executeQuery(query, params);
+    return results.length > 0;
   } catch (error) {
-    return error;
-  }
-  if (results.length < 1) {
+    console.error(error);
     return false;
   }
-  return true;
 }
 
 async function decodeToken(token) {

@@ -1,18 +1,13 @@
 <script>
   import {onMount} from "svelte";
-  import {getUsersWithGroups, updateUser, createUser, createGroup} from "$api";
+  import {api} from "$api";
   import {GroupTags,Modal} from "$components";
+  import FaEdit from "svelte-icons/fa/FaEdit.svelte";
+  import {goto} from "$app/navigation";
+  import {toast} from "svelte-sonner";
 
   let users = [];
   let showGroupModal = false;
-
-  function toggleGroupModal() {
-    showGroupModal = !showGroupModal;
-  }
-
-  onMount(async () => {
-      users = await getUsersWithGroups();
-  })
   let newUser = {
     username: '',
     email: '',
@@ -20,15 +15,67 @@
     user_group: [],
     accountStatus: 'active'
   };
-
   let newGroup = "";
 
   $: editingRow = null;
 
-  async function submitForm() {
-    console.log(newUser);
-    await createUser(newUser);
-    users = await getUsersWithGroups();
+  onMount(async () => {
+    try {
+		const response = await api.get('/api/users', { withCredentials: true });
+		users = response.data.users;
+	} catch (error) {
+		console.log(error.status);
+		if (error.status === 401) {
+			goto('/login');
+		}
+		toast.error(error.response.data.error);
+	}
+  })
+
+  async function handleNewUser() {
+    if (!newUser.username || !newUser.password) {
+		  toast.error('Fill in mandatory fields');
+		return;
+	  }
+    // check if user exists
+    const foundUser = users.find(user => user.username === newUser.username);
+    if (foundUser) {
+      toast.error('Username already exists');
+      return;
+    }
+    // password regex
+    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[^\da-zA-Z]).{8,10}$/;
+    if (!passwordRegex.test(newUser.password)) {
+      toast.error("Password must be between 8 and 10 characters and contain at least one letter, one number, and one special character");
+      return;
+    }
+    if (newUser.email) {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(newUser.email)) {
+        toast.error("Email is not valid");
+        return; 
+      }
+    }
+    try {
+      const response = await api.post('/api/users', {user: newUser}, { withCredentials: true });
+      toast.success(response.data.success);
+    } catch (error) {
+      toast.error(error.response.data.error);
+      if (error.status === 401) {
+        goto('/login');
+      }
+    }
+
+  try {
+		const response = await api.get('/api/users', { withCredentials: true });
+		users = response.data.users;
+	} catch (error) {
+		console.log(error.status);
+		if (error.status === 401) {
+			goto('/login');
+		}
+		toast.error(error.response.data.error);
+	}
     newUser = {
       username: '',
       email: '',
@@ -50,19 +97,60 @@
         rows[index].accountStatus = event.target.value;
     }
 
-  async function saveChanges(user) {
-    await updateUser(user);
+  async function handleEditUser(user) {
+    if (!user.username || !user.password) {
+		toast.error('Please fill in all fields');
+		return;
+	}
+	try {
+		const response = await api.post('/api/users/update', { user }, { withCredentials: true });
+		toast.success(response.data.success);
+	} catch (error) {
+		if (error.status === 401) {
+			goto('/login');
+		}
+		toast.error(error.response.data.error);
+	}
+  try {
+		const response = await api.get('/api/users', { withCredentials: true });
+		users = response.data.users;
+	} catch (error) {
+		console.log(error.status);
+		if (error.status === 401) {
+			goto('/login');
+		}
+		toast.error(error.response.data.error);
+	}
   }
 
-  async function cancelChanges() {
-    //cancel (refresh data?)
-    users = await getUsersWithGroups();
+  async function cancelUserChanges() {
+    try {
+		const response = await api.get('/api/users', { withCredentials: true });
+		users = response.data.users;
+	} catch (error) {
+		console.log(error.status);
+		if (error.status === 401) {
+			goto('/login');
+		}
+		toast.error(error.response.data.error);
+	}
   }
 
-  async function submitGroup() {
-    console.log("newgroup", newGroup);
-    await createGroup(newGroup);
-    newGroup = "";
+  function toggleGroupModal() {
+    showGroupModal = !showGroupModal;
+  }
+
+  async function handleAddGroup() {
+    try {
+      const response = await api.post('/api/groups', { newGroup }, { withCredentials: true });
+      toast.success(response.data.success);
+      newGroup = "";
+	  } catch (error) {
+      toast.error(error.response.data.error);
+      if (error.status === 401) {
+        goto('/login');
+		  }
+	  }
   }
 </script>
 
@@ -74,7 +162,7 @@
       <input type="text" bind:value={newGroup} placeholder=""/>
     </div>
     <div class="add-group-buttons">
-      <button on:click={submitGroup}>Add</button>
+      <button on:click={handleAddGroup}>Add</button>
       <button on:click={toggleGroupModal}>Cancel</button>
     </div>
   </div>
@@ -89,14 +177,14 @@
 
   <div class="user-table">
       <table>
-        <th></th>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Groups</th>
-          <th>Password</th>
-          <th>Status</th>
-          <th>Action</th>
-          <th></th>
+        <th class="col1"></th>
+          <th class="col2">Name</th>
+          <th class="col3">Email</th>
+          <th class="col4">Groups</th>
+          <th class="col5">Password</th>
+          <th class="col6">Status</th>
+          <th class="col7">Action</th>
+          <th class="col8"></th>
           <tr>
             <td style="border-bottom: none"></td>
             <td><input type="text" name="username" placeholder="Name" bind:value={newUser.username}/></td>
@@ -111,7 +199,7 @@
                 </select>
               </div>
             </td>
-            <td><button type="submit" on:click={submitForm}>Submit</button></td>
+            <td><button type="submit" on:click={handleNewUser}>Submit</button></td>
             <td style="border-bottom: none"></td>
           </tr>
           {#each users as user, index}
@@ -134,8 +222,8 @@
                       </div>
                 </td>
                 <td class="editing">
-                  <button class="save-button" on:click={() => {toggleEdit(index); saveChanges(user)}}>Save Changes</button>
-                  <button class="cancel-button" on:click={() => {toggleEdit(index); cancelChanges()}}>Cancel</button>
+                  <button class="save-button" on:click={() => {toggleEdit(index); handleEditUser(user)}}>Save Changes</button>
+                  <button class="cancel-button" on:click={() => {toggleEdit(index); cancelUserChanges()}}>Cancel</button>
                 </td>
                 <td class="editing"></td>
                 {:else}
@@ -143,9 +231,9 @@
                 <td>{user.username}</td>
                 <td>{user.email}</td>
                 <td><GroupTags editTags={editingRow === index} bind:selected={user.groups}/></td>
-                <td><input readonly type="password" name="password" placeholder="Password" bind:value={user.password}/></td>
+                <td><input  style="max-width: 8ch" readonly type="password" name="password" placeholder="Password" bind:value={user.password}/></td>
                 <td>{user.accountStatus}</td>
-                <td><button class="edit-button" on:click={() => toggleEdit(index)}>Edit</button></td>
+                <td><button class="edit-button" on:click={() => toggleEdit(index)}><FaEdit/></button></td>
                 {/if}
           {/each}
       </table>
@@ -203,6 +291,7 @@
   button:hover {
       background-color: rgba(0,0,0,0.8);
   }
+
   button:active {
       background-color: rgba(0,0,0,0.5);
   }
@@ -219,10 +308,22 @@
     color: #8f9bb3;
   }
 
-  th, td {  
-    width: 200px;
+  .col1 {
+    width: 10%;
+  }
+
+  .col8 {
+    width: 10%;
+  }
+
+  .col2,.col3,.col4,.col5,.col6 {
+    width: 13%;
   }
   
+  .col7 {
+    width: 15%;
+  }
+
   td {
     position: relative;
     overflow: visible;
@@ -273,6 +374,21 @@
     background-color: #007bff;
     color: #fff;
   }
+
+  .edit-button{
+    background-color: transparent;
+    color: #a1a1a1;
+    width: 48px;
+  }
+
+  .edit-button:hover {
+    background-color: transparent;
+  }
+
+  .edit-button:active {
+    background-color: transparent;
+  }
+
 
   .cancel-button {
     background-color: white;

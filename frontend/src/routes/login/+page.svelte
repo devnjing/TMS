@@ -1,14 +1,26 @@
 <script>
-  import { goto } from '$app/navigation';
-  import {login} from "$api";
+  import {api} from '$api';
+  import {onMount} from 'svelte';
+  import {toast} from 'svelte-sonner';
+  import {goto} from '$app/navigation';
   
   let username;
   let password;
 
   async function handleLogin () {
-    const response = await login(username,password);
-    if(response.data.success){
+    try {
+      if (!username || !password) return toast.error('Please provide username and password');
+      const response = await api.post(
+        '/api/login',
+        { username, password },
+        { withCredentials: true }
+      );
       goto('/applications');
+    } catch (error) {
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
     }
   }
 </script>
@@ -16,14 +28,10 @@
 <div class="login-container">
   <div class="login-box">
     <h1>LOGIN</h1>
-    <form on:submit|preventDefault={handleLogin}>
-      <div class="field">
+    <form on:submit|preventDefault={handleLogin}>      
         <input type="text" id="username" bind:value={username} placeholder="Username" />
-      </div>
-      <div class="field">
         <input type="password" id="password" bind:value={password}  placeholder="Password"/>
-      </div>
-      <button type="submit">Login</button>
+        <button type="submit">Login</button>
     </form>
   </div>
 </div>
@@ -39,34 +47,36 @@
 
   h1 {
     font-weight: 1000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    text-align: center;
   }
 
   .login-box {
     align-items: center;
     padding: 20px;
-    width: 33vh;
+    width: 350px;
   }
 
-  .field {
-    margin-top: 20px;
-    margin-bottom: 20px;
+  input {
+    box-sizing: border-box;
+    background-color: #eee;
+    width: 100%;
+    padding: 10px 0px 10px 10px;
+    margin-top: 15px;
     border: 1px solid #ccc;
     border-radius: 5px;
-    padding: 10px;
-    background-color: #D3D3D3;
   }
 
-  input[type="text"], input[type="password"] {
-    width: 100%;
-    border: none;
-    outline: none;
-    background-color: #D3D3D3;
+  input:focus {
+    border-color: #aaa;
+    box-shadow: 0 0 1px rgba(0,0,0,0.3);
+  }
+
+  input:hover {
+    border-color: #aaa;
   }
 
   button[type="submit"] {
+    margin-top: 15px;
     width: 100%;
     background-color: #000000;
     color: #fff;

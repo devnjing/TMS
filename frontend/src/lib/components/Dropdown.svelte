@@ -1,8 +1,11 @@
 <script>
+  import { createEventDispatcher } from 'svelte';
+
   export let options = [];
   export let selected = [];
   export let dropdownText = "+";
 
+  const dispatch = createEventDispatcher();
   let isOpen = false;
 
   function toggle() {
@@ -35,10 +38,15 @@
 			}
 		}
 	}
+
+  function handleOpen() {
+      toggle();
+      dispatch('open');
+    }
 </script>
 
 <div class="dropdown" use:clickOutside={() => (isOpen = false)}>
-  <button class="dropdown-toggle" on:click={toggle}>
+  <button class="dropdown-toggle" on:click={handleOpen}>
     {dropdownText}
   </button>
   {#if isOpen}
