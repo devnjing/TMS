@@ -15,24 +15,6 @@ exports.loginUser = async (req, res) => {
       samesite: "None"
     };
 
-    // if admin
-
-    if (username === "admin") {
-      const isPasswordValid = bcrypt.compare(password, process.env.ADMIN_PASSWORD);
-      if (!isPasswordValid) {
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
-      // create token
-      const token = jwt.sign({ username, ipAddress: req.socket.remoteAddress, userAgent: req.headers["user-agent"] }, process.env.JWT_SECRET, {
-        expiresIn: process.env.EXPIRY
-      });
-
-      // send token with cookie
-      res.status(200).cookie("token", token, options).json({
-        success: "Logged in successfully",
-        token
-      });
-    }
     // find user by username
     const user = await getUserByUname(username);
     if (!user) {

@@ -15,26 +15,30 @@
     user_group: [],
     accountStatus: 'active'
   };
+  let newPassword;
   let newGroup = "";
 
   $: editingRow = null;
 
-  onMount(async () => {
+  async function getUsersWithGroups() {
     try {
-		const response = await api.get('/api/users', { withCredentials: true });
-		users = response.data.users;
-	} catch (error) {
-		console.log(error.status);
+		  const response = await api.get('/api/users', { withCredentials: true });
+		  return response.data.users;
+	  } catch (error) {
 		if (error.status === 401) {
 			goto('/login');
 		}
-		toast.error(error.response.data.error);
-	}
+		  toast.error(error.response.data.error);
+	  }
+  }
+
+  onMount(async () => {
+    users = await getUsersWithGroups();
   })
 
   async function handleNewUser() {
     if (!newUser.username || !newUser.password) {
-		  toast.error('Fill in mandatory fields');
+		  toast.error('Username & password are mandatory');
 		return;
 	  }
     // check if user exists
@@ -66,16 +70,9 @@
       }
     }
 
-  try {
-		const response = await api.get('/api/users', { withCredentials: true });
-		users = response.data.users;
-	} catch (error) {
-		console.log(error.status);
-		if (error.status === 401) {
-			goto('/login');
-		}
-		toast.error(error.response.data.error);
-	}
+    users = await getUsersWithGroups();
+
+    // reset form
     newUser = {
       username: '',
       email: '',
@@ -103,7 +100,11 @@
 		return;
 	}
 	try {
+    if(newPassword){
+      user.password = newPassword;
+    } 
 		const response = await api.post('/api/users/update', { user }, { withCredentials: true });
+    newPassword = '';
 		toast.success(response.data.success);
 	} catch (error) {
 		if (error.status === 401) {
@@ -111,29 +112,12 @@
 		}
 		toast.error(error.response.data.error);
 	}
-  try {
-		const response = await api.get('/api/users', { withCredentials: true });
-		users = response.data.users;
-	} catch (error) {
-		console.log(error.status);
-		if (error.status === 401) {
-			goto('/login');
-		}
-		toast.error(error.response.data.error);
-	}
+    users = await getUsersWithGroups();
+    editingRow = null;
   }
 
   async function cancelUserChanges() {
-    try {
-		const response = await api.get('/api/users', { withCredentials: true });
-		users = response.data.users;
-	} catch (error) {
-		console.log(error.status);
-		if (error.status === 401) {
-			goto('/login');
-		}
-		toast.error(error.response.data.error);
-	}
+    users = await getUsersWithGroups();
   }
 
   function toggleGroupModal() {
@@ -202,14 +186,15 @@
             <td><button type="submit" on:click={handleNewUser}>Submit</button></td>
             <td style="border-bottom: none"></td>
           </tr>
+          {#if users}
           {#each users as user, index}
               <tr>
                 {#if editingRow === index}
                 <td style="border-bottom: none" class="editing"></td>
                 <td class="editing">{user.username}</td>
-                <td class="editing"><input type="email" name="email" placeholder="Email" bind:value={user.email}/></td>
+                <td class="editing"><input type="email" name="email" placeholder="New Email" bind:value={user.email}/></td>
                 <td class="editing"><GroupTags editTags={editingRow === index} bind:selected={user.groups}/></td>
-                <td class="editing"><input type="password" name="password" placeholder="Password" bind:value={user.password}/></td>
+                <td class="editing"><input type="password" name="password" placeholder="New Password" bind:value={newPassword}/></td>
                 <td class="editing" contenteditable={editingRow === index}>
                       <div class="dropdown active">
                           <select
@@ -231,11 +216,12 @@
                 <td>{user.username}</td>
                 <td>{user.email}</td>
                 <td><GroupTags editTags={editingRow === index} bind:selected={user.groups}/></td>
-                <td><input  style="max-width: 8ch" readonly type="password" name="password" placeholder="Password" bind:value={user.password}/></td>
+                <td><input  style="max-width: 8ch" readonly type="password" name="password" value="12345678"/></td>
                 <td>{user.accountStatus}</td>
                 <td><button class="edit-button" on:click={() => toggleEdit(index)}><FaEdit/></button></td>
                 {/if}
           {/each}
+          {/if}
       </table>
   </div>
 </div>
@@ -308,13 +294,11 @@
     color: #8f9bb3;
   }
 
-  .col1 {
-    width: 10%;
+  .col1,.col8 {
+    width: 5%;
   }
 
-  .col8 {
-    width: 10%;
-  }
+
 
   .col2,.col3,.col4,.col5,.col6 {
     width: 13%;

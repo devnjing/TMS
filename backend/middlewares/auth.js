@@ -42,7 +42,7 @@ exports.isAuthorizedUser = (...groups) => {
       //use checkGroup function to check for group
       let hasGroup = false;
       for (const group of groups) {
-        if (await checkGroup(req.user.username, group)) {
+        if ((await checkGroup(req.user.username, group)) === true) {
           hasGroup = true;
           break;
         }
@@ -61,6 +61,7 @@ exports.isAuthorizedUser = (...groups) => {
   };
 };
 
+/*------------------------------------------------------------functions-------------------------------------------------------------------------------------------------*/
 async function getUserByUsername(username) {
   const query = "SELECT * FROM accounts WHERE username = ?";
   const params = [username];
@@ -79,7 +80,6 @@ async function getUserByUsername(username) {
   }
 }
 
-/*------------------------------------------------------------functions-------------------------------------------------------------------------------------------------*/
 async function checkGroup(username, groupname) {
   const query = "SELECT * FROM usergroup WHERE username = ? AND user_group = ?";
   const params = [username, groupname];

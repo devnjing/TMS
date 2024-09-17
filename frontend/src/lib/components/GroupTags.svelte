@@ -2,6 +2,8 @@
 	import { onMount } from "svelte";
   import Dropdown from "./Dropdown.svelte";
   import {api} from '$api';
+  import {goto} from '$app/navigation';
+  import {toast} from "svelte-sonner";
 
   export let selected = [];
   export let editTags = false;
@@ -46,7 +48,7 @@
 
   {#if editTags}
     <div class="select-tags">
-      <Dropdown {options} bind:selected={selected} on:open={() => (refreshOptions())} on:close={() => (isOpen = false)}/>
+      <Dropdown {options} bind:selected={selected} on:open={() => (refreshOptions())}/>
     </div>
   {/if}
   {#each reactiveSelected as tag}

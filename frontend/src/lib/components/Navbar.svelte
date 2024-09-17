@@ -13,47 +13,35 @@
     password: '',
   };
   let showProfileModal = false;
-  
+  let newPassword;
 
-  onMount(async () => {
+  async function checkIfAdmin () {
     // check if admin
     try {
-		const response = await api.get('/api/user/is-admin', { withCredentials: true });
-		isAdmin = response.data.isAdmin;
-	} catch (error) {
-		toast.error(error.response.data.error);
+		  const response = await api.get('/api/user/is-admin', { withCredentials: true });
+		  return response.data.isAdmin;
+	  } catch (error) {
+		  toast.error(error.response.data.error);
 	}
-  // get user data
-    try {
-		const response = await api.get('/api/user', { withCredentials: true });
-		currentUser = response.data.user;
-	} catch (error) {
-		toast.error(error.response.data.error);
-	}
-  })
+  }
 
-  async function toggleProfileModal() {
-    showProfileModal = !showProfileModal;
-    try {
+  async function getUser(){
+  // get user data
+  try {
 		const response = await api.get('/api/user', { withCredentials: true });
-		currentUser = response.data.user;
+		return response.data.user;
 	} catch (error) {
-		if (error.status === 401) {
-			goto('/login');
-		}
 		toast.error(error.response.data.error);
 	}
   }
 
-  async function handleEditProfile(){
-    console.log("updating profile");
-    if (!currentUser.username || !currentUser.password) {
-		toast.error('Please fill in all fields');
-		return;
-	  }
+  async function updateProfile() {
+    // update profile
     try {
+      if (newPassword) {
+        currentUser.password = newPassword;
+      }
       const response = await api.post('/api/user', { user: currentUser }, { withCredentials: true });
-      console.log("user update");
       toast.success(response.data.success);
     } catch (error) {
       if (error.status === 401) {
@@ -61,15 +49,21 @@
       }
       toast.error(error.response.data.error);
     }
-      try {
-      const response = await api.get('/api/user', { withCredentials: true });
-      currentUser = response.data.user;
-    } catch (error) {
-      if (error.status === 401) {
-        goto('/login');
-      }
-      toast.error(error.response.data.error);
-    }
+  }
+  
+  onMount(async () => {
+    isAdmin = await checkIfAdmin();
+    currentUser = await getUser();
+  })
+
+  async function toggleProfileModal() {
+    showProfileModal = !showProfileModal;
+    currentUser = await getUser();
+  }
+
+  async function handleEditProfile(){
+    await updateProfile();
+    currentUser = await getUser();
     toggleProfileModal();
   }
 
@@ -82,7 +76,7 @@
     }
   }
 </script>
-
+{#if currentUser}
 <Modal bind:showModal={showProfileModal}>
   <div class="edit-profile-modal">
     <h1>Edit Profile</h1>
@@ -91,8 +85,8 @@
       <input type="text" name="username" bind:value={currentUser.username} readonly/>
       <label for="email">Email:</label>
       <input type="email" name="email" bind:value={currentUser.email} placeholder=""/>
-      <label for="password">Password:</label>
-      <input type="password" name="password" bind:value={currentUser.password} placeholder=""/>
+      <label for="password">New Password:</label>
+      <input type="password" name="password" bind:value={newPassword} placeholder=""/>
     </div>
     <div class="edit-profile-buttons">
       <button on:click={handleEditProfile}>Update</button>
@@ -100,6 +94,7 @@
     </div>
   </div>
 </Modal>
+
 
 <div class="navbar">
   <h1>Hello {currentUser.username}</h1>
@@ -114,7 +109,7 @@
     <button on:click={handleLogout}>Logout</button>
   </div>
 </div>
-
+{/if}
 <style>
   .navbar {
     display: flex;
@@ -153,7 +148,7 @@
   .edit-profile-modal {
     display: flex;
     flex-direction: column;
-    width: 500px;
+    width: 600px;
     height: 300px;
     justify-content: center;
     align-items: center;
