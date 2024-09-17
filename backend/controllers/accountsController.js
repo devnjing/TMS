@@ -70,6 +70,16 @@ exports.getUser = async (req, res) => {
   }
 };
 
+exports.getStatus = async (req, res) => {
+  try {
+    let decoded = await decodeToken(req.cookies.token); // get username from token
+    const { accountStatus } = await getUserByUname(decoded.username);
+    res.status(200).json({ accountStatus });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to get user" });
+  }
+};
+
 // POST api/user
 exports.updateProfile = async (req, res) => {
   const { user } = req.body;
@@ -213,7 +223,7 @@ exports.getUsersWithGroups = async (req, res) => {
     users.forEach(user => {
       user.groups = groups.filter(group => group.username === user.username).map(group => group.user_group);
     });
-
+    console.log(users);
     res.status(200).json({ users });
   } catch (error) {
     res.status(500).json({ error: "Failed to get users" });

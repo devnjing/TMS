@@ -1,8 +1,8 @@
 const jwt = require("jsonwebtoken");
 const { executeQuery } = require("../db");
 
-// is user Authorized
-exports.isAuthorizedUser = (...groups) => {
+// is user authorized
+exports.isAuthorized = () => {
   return async (req, res, next) => {
     const token = req.cookies.token;
     try {
@@ -39,22 +39,28 @@ exports.isAuthorizedUser = (...groups) => {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      //use checkGroup function to check for group
-      let hasGroup = false;
-      for (const group of groups) {
-        if ((await checkGroup(req.user.username, group)) === true) {
-          hasGroup = true;
-          break;
-        }
-      }
-      if (hasGroup) {
-        next();
-      } else {
-        res.clearCookie("token");
-        res.status(401).json({ error: "Unauthorized" });
-      }
+      next();
     } catch (error) {
       console.error(error);
+      res.clearCookie("token");
+      res.status(401).json({ error: "Unauthorized" });
+    }
+  };
+};
+
+exports.allowedGroups = (...groups) => {
+  return async (req, res, next) => {
+    //use checkGroup function to check for group
+    let hasGroup = false;
+    for (const group of groups) {
+      if ((await checkGroup(req.user.username, group)) === true) {
+        hasGroup = true;
+        break;
+      }
+    }
+    if (hasGroup) {
+      next();
+    } else {
       res.clearCookie("token");
       res.status(401).json({ error: "Unauthorized" });
     }

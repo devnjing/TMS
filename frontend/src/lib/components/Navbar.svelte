@@ -82,7 +82,7 @@
     <h1>Edit Profile</h1>
     <div class="edit-profile-form">    
       <label for="username">Username:</label>
-      <input type="text" name="username" bind:value={currentUser.username} readonly/>
+      <p name="username" class="username">{currentUser.username}</p>
       <label for="email">Email:</label>
       <input type="email" name="email" bind:value={currentUser.email} placeholder=""/>
       <label for="password">New Password:</label>
@@ -189,10 +189,20 @@
 
   input:focus {
     border-color: #aaa;
-    box-shadow: 0 0 1px rgba(0,0,0,0.3);
+    box-shadow: 0 0 1px 
+    rgba(0,0,0,0.3);
   }
 
   input:hover {
     border-color: #aaa;
   }
+
+  .username {
+    display: flex;
+    width: 100%;
+    justify-content: left;
+    text-align: left;
+    margin-left: 20px;
+  }
+
 </style>

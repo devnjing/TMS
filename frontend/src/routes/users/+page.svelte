@@ -37,17 +37,26 @@
   })
 
   async function handleNewUser() {
+    // check if fields are empty
     if (!newUser.username || !newUser.password) {
 		  toast.error('Username & password are mandatory');
 		return;
 	  }
+
+    // username input validation
+    const usernameRegex = /^[a-zA-Z0-9]+$/;
+    if (!usernameRegex.test(newUser.username)) {
+      toast.error("Username can only contain letters and numbers");
+      return;
+    }
+
     // check if user exists
     const foundUser = users.find(user => user.username === newUser.username);
     if (foundUser) {
       toast.error('Username already exists');
       return;
     }
-    // password regex
+    // validate password
     const passwordRegex = /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[^\da-zA-Z]).{8,10}$/;
     if (!passwordRegex.test(newUser.password)) {
       toast.error("Password must be between 8 and 10 characters and contain at least one letter, one number, and one special character");
@@ -126,6 +135,12 @@
 
   async function handleAddGroup() {
     try {
+      const groupRegex = /^[a-zA-Z0-9_]{1,50}$/;
+      if (!groupRegex.test(newGroup)) {
+        toast.error("Group name must be a maximum of 50 characters, and only consist of letters, numbers, and underscores");
+        return;
+      }
+
       const response = await api.post('/api/groups', { newGroup }, { withCredentials: true });
       toast.success(response.data.success);
       newGroup = "";
@@ -195,6 +210,7 @@
                 <td class="editing"><input type="email" name="email" placeholder="New Email" bind:value={user.email}/></td>
                 <td class="editing"><GroupTags editTags={editingRow === index} bind:selected={user.groups}/></td>
                 <td class="editing"><input type="password" name="password" placeholder="New Password" bind:value={newPassword}/></td>
+                {#if !(user.username === "admin")}
                 <td class="editing" contenteditable={editingRow === index}>
                       <div class="dropdown active">
                           <select
@@ -206,6 +222,9 @@
                           </select>
                       </div>
                 </td>
+                  {:else}
+                  <td class="editing">{user.accountStatus}</td>
+                  {/if}
                 <td class="editing">
                   <button class="save-button" on:click={() => {toggleEdit(index); handleEditUser(user)}}>Save Changes</button>
                   <button class="cancel-button" on:click={() => {toggleEdit(index); cancelUserChanges()}}>Cancel</button>
