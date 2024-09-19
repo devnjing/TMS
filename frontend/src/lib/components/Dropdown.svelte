@@ -81,6 +81,7 @@
     position: absolute;
     top: 100%;
     left: 0;
+    margin-left: 35px;
     background-color: #fff;
     border: 1px solid #ddd;
     padding: 10px;

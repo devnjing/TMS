@@ -50,6 +50,8 @@ exports.isAuthorized = () => {
 
 exports.allowedGroups = (...groups) => {
   return async (req, res, next) => {
+    //decrypt token first, dont take from req
+
     //use checkGroup function to check for group
     let hasGroup = false;
     for (const group of groups) {
