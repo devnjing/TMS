@@ -21,7 +21,7 @@ router.route("/users").post(isAuthorized(), allowedGroups("admin"), addUser);
 router.route("/users/update").post(isAuthorized(), allowedGroups("admin"), updateUser);
 
 // group management
-router.route("/groups").get(isAuthorized(), allowedGroups("admin"), getAllGroups);
+router.route("/groups").get(isAuthorized(), getAllGroups);
 router.route("/groups").post(isAuthorized(), allowedGroups("admin"), addGroup);
 
 module.exports = router;

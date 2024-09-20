@@ -99,7 +99,7 @@
 <div class="navbar">
   <h1>Hello {currentUser.username}</h1>
   <nav>
-    <a href="/applications" class:active={$page.url.pathname === "/applications"}>Applications</a>
+    <a href="/applications" class:active={$page.url.pathname.startsWith("/applications")} >Applications</a>
     {#if isAdmin}
       <a href="/users" class:active={$page.url.pathname === "/users"}>User Management</a>
     {/if}

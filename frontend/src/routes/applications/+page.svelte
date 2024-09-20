@@ -5,89 +5,71 @@
 	import { toast } from "svelte-sonner";
   import {ApplicationCard, Modal, GroupTags} from "$components";
 
+  let applications = [];
 
-  let applications = [
-    {
-      App_Acronym: 'App1',
-      App_Description: 'Application 1 eeeeeeeeeeeeee',
-      App_Rnumber: '1000',
-      App_startDate: '2022-01-01',
-      App_endDate: '2022-12-31',
-      App_permit_Create: ["admin", "pl"],
-      App_permit_Open: ["admin", "pl"], 
-      App_permit_toDo: ["admin", "pl"],
-      App_permit_Doing: ["admin", "pl"],
-      App_permit_Done: ["admin", "pl"],
-    },
-    {
-      App_Acronym: 'App2',
-      App_Description: 'Application 2 aaaaaaaaaaaaaaaaaaa',
-      App_Rnumber: '100',
-      App_startDate: '2022-01-01',
-      App_endDate: '2022-12-31',
-      App_permit_Create: ["admin", "pl"],
-      App_permit_Open: ["admin", "pl"], 
-      App_permit_toDo: ["admin", "pl"],
-      App_permit_Doing: ["admin", "pl"],
-      App_permit_Done: ["admin", "pl"],
-    },
-  ]
   let newApp = {      
     App_Acronym: '',
     App_Description: '',
-    App_Rnumber: '',
+    App_Rnumber: 0,
     App_startDate: '',
     App_endDate: '',
     App_permit_Create: [],
     App_permit_Open: [], 
-    App_permit_toDo: [],
+    App_permit_toDoList: [],
     App_permit_Doing: [],
     App_permit_Done: [],
   }
-  let selectedApp;
   let showAppModal = false;
 
-  onMount(async () => {
-    // todo: API call to get all apps
+  async function createApplication(newApp) {
     try {
-      const response = await api.get('/api/user/status', { withCredentials: true });
-      if (response.data.accountStatus !== 'active') {
-        goto('/login');
-      }
+      const response = await api.post('/api/applications', {application: newApp}, { withCredentials: true });
+      toast.success(response.data.success);
     } catch (error) {
       if (error.status === 401) {
         goto('/login');
       }
       toast.error(error.response.data.error);
     }
-  })
-
-  function handleEnterApp () {
-    goto(`/applications/${selectedApp}`);
   }
 
   function toggleAppModal() {
     showAppModal = !showAppModal;
   }
 
-  function handleCreateApp() {
-    //TODO api to create app
-    console.log("create app");
+  async function handleCreateApp() {
+    await createApplication(newApp);
     newApp = {      
-    App_Acronym: '',
-    App_Description: '',
-    App_Rnumber: '',
-    App_startDate: '',
-    App_endDate: '',
-    App_permit_Create: [],
-    App_permit_Open: [], 
-    App_permit_toDo: [],
-    App_permit_Doing: [],
-    App_permit_Done: [],
-  }
+      App_Acronym: '',
+      App_Description: '',
+      App_Rnumber: 0,
+      App_startDate: '',
+      App_endDate: '',
+      App_permit_Create: [],
+      App_permit_Open: [], 
+      App_permit_toDoList: [],
+      App_permit_Doing: [],
+      App_permit_Done: [],
+    }
+    applications = await getApplications();
   }
 
-
+  async function getApplications() {
+    try {
+      const response = await api.get('/api/applications', { withCredentials: true });
+      console.log(response.data);
+      return response.data;
+    } catch (error) {
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
+  }
+  onMount(async () => {
+    applications = await getApplications();
+    console.log(applications);
+  })
 </script>
 <Modal bind:showModal={showAppModal}>
   <div class="create-app-modal">
@@ -96,7 +78,7 @@
       <label for="app-acronym">App Acronym:</label>
       <input type="text" name="app-acronym" placeholder="Name" bind:value={newApp.App_Acronym}/>
       <label for="app-r-number" >App R-Number:</label>
-      <input type="text" name="app-r-number" placeholder="Number" bind:value={newApp.App_Rnumber}/>
+      <input type="number" name="app-r-number" placeholder="Number" bind:value={newApp.App_Rnumber}/>
       <label for="app-description">App Description:</label>
       <textarea name="app-description" placeholder="" bind:value={newApp.App_Description}/>
       <label for="start-date">Start Date:</label>
@@ -111,7 +93,7 @@
       <label for="open">Open:</label>
       <GroupTags name="open"editTags=true bind:selected={newApp.App_permit_Open}/>
       <label for="todo">ToDo:</label>
-      <GroupTags name="todo"editTags=true bind:selected={newApp.App_permit_toDo}/>
+      <GroupTags name="todo"editTags=true bind:selected={newApp.App_permit_toDoList}/>
       <label for="doing">Doing:</label>
       <GroupTags name="doing"editTags=true bind:selected={newApp.App_permit_Doing}/>
       <label for="done">Done:</label>
@@ -126,8 +108,9 @@
 
 <div>
   <div class="top-bar">
-    <h1>User Management</h1>
-    <button class="add-groups" on:click={toggleAppModal}>+ GROUP</button>
+    <h1>Applications</h1>
+    <h1>edit app button</h1>
+    <button class="add-groups" on:click={toggleAppModal}>+ APPLICATION</button>
   </div>
   <div class="applications-container">
     {#each applications as app}
@@ -210,7 +193,8 @@
     border-color: #aaa;
   }
   textarea {
+    resize: none;
     width: 535px;
-    height: 50px;
+    height: 100px;
   }
 </style>

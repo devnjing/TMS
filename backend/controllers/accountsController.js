@@ -1,6 +1,5 @@
 const { executeQuery } = require("../db");
 const bcrypt = require("bcrypt");
-const e = require("express");
 const jwt = require("jsonwebtoken");
 
 // POST api/login
@@ -223,7 +222,6 @@ exports.getUsersWithGroups = async (req, res) => {
     users.forEach(user => {
       user.groups = groups.filter(group => group.username === user.username).map(group => group.user_group);
     });
-    console.log(users);
     res.status(200).json({ users });
   } catch (error) {
     res.status(500).json({ error: "Failed to get users" });

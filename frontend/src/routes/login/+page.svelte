@@ -1,6 +1,5 @@
 <script>
   import {api} from '$api';
-  import {onMount} from 'svelte';
   import {toast} from 'svelte-sonner';
   import {goto} from '$app/navigation';
   

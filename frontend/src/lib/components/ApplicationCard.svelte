@@ -1,16 +1,18 @@
 <script>
 import {goto} from "$app/navigation";
 import {onMount} from "svelte";
+
 export let appDetails = [];
 
 const handleEnterApp = () => {
-  console.log("app: ",appDetails.App_Acronym);
   goto(`/applications/${appDetails.App_Acronym}`);
 }
 
-onMount(async () => {
-  //TODO api call to get app details
-}) 
+onMount(() => {
+  appDetails.startDate = new Date(appDetails.App_startDate);
+  appDetails.endDate = new Date(appDetails.App_endDate);
+})
+
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->

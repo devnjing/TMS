@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const accounts = require("./routes/accounts");
+const taskManagement = require("./routes/taskManagement");
 const cookieParser = require("cookie-parser");
 
 require("dotenv").config();
@@ -20,7 +21,7 @@ app.use(cookieParser());
 app.use(cors(corsOptions));
 app.use(express.urlencoded({ extended: true }));
 
-app.use("/api", accounts);
+app.use("/api", accounts, taskManagement);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

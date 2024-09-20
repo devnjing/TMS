@@ -4,3 +4,4 @@ export { default as Modal } from './Modal.svelte';
 export { default as GroupTags } from './GroupTags.svelte';
 export { default as Dropdown } from './Dropdown.svelte';
 export { default as ApplicationCard } from './ApplicationCard.svelte';
+export { default as TaskCard } from './taskCard.svelte';

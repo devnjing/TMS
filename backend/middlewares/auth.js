@@ -7,7 +7,7 @@ exports.isAuthorized = () => {
     const token = req.cookies.token;
     try {
       if (!token) {
-        return res.status(401).json({ error: "Unauthorized" });
+        return res.status(401).json({ error: "Unauthorized no token" });
       }
       // decode token and find user
       const decoded = await decodeToken(req.cookies.token);
