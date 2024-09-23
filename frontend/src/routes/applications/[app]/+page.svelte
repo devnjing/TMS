@@ -12,6 +12,11 @@
   let tasks = [];
   let appDetails = {};
   let plans = [];
+  let currentUser;
+  let currentUsername;
+
+  $: currentTaskId = appDetails.App_Acronym + "_" + appDetails.App_Rnumber;
+
 
   let newPlan = {
     Plan_MVP_name: "",
@@ -21,27 +26,36 @@
     Plan_color: "",
   }
 
-  let newTask = [
-    {
+  let createDate;
+  let newTask = {
       Task_id: "",
       Task_plan: "",
       Task_app_Acronym: "",
       Task_name: "",
       task_description: "",
-      Task_Notes: "",
-      Task_state: "",
-      Task_creator: "",
-      Task_owner: "",
+      Task_notes: "",
+      Task_state: "Open",
+      Task_creator: "Current User",
+      Task_owner: "Current User",
       Task_createDate: "",
     }
-  ]
 
-  async function togglePlanModal() {
+  function togglePlanModal() {
     showPlanModal = !showPlanModal;
-    plans = await getPlans();
   }
 
-  function toggleAddTaskModal() {
+  function currentDate () {
+    const today = new Date();
+    const date = today.getDate() + "/" + (today.getMonth()+1).toString().padStart(2, '0') + "/" + today.getFullYear();
+    return date;
+  }
+
+  async function toggleAddTaskModal() {
+    plans = await getPlans();
+    appDetails = await getApplication();
+    createDate = currentDate();
+    currentUser = await getUser();
+    currentUsername = currentUser.username;
     showAddTaskModal = !showAddTaskModal;
   }
 
@@ -55,6 +69,37 @@
         Plan_startDate: "",
         Plan_endDate: "",
         Plan_color: "",
+      }
+    } catch (error) {
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
+  }
+
+  async function handleAddTask() {
+    newTask.Task_id = currentTaskId;
+    newTask.Task_app_Acronym = App_Acronym;
+    newTask.Task_state = "Open";
+    newTask.Task_creator = currentUsername;
+    newTask.Task_owner = currentUsername;
+    newTask.Task_createDate = createDate;
+    console.log(newTask);
+    try {
+      const response = await api.post('/api/task', {task: newTask}, { withCredentials: true });
+      toast.success(response.data.success);
+      newTask = {
+        Task_id: "",
+        Task_plan: "",
+        Task_app_Acronym: "",
+        Task_name: "",
+        task_description: "",
+        Task_notes: "",
+        Task_state: "Open",
+        Task_creator: "Current User",
+        Task_owner: "Current User",
+        Task_createDate: "",
       }
     } catch (error) {
       if (error.status === 401) {
@@ -79,10 +124,33 @@
 
   async function getPlans() {
     try{
-      const response = await api.post('/api/plans',{withCredentials: true})
-      return response.data;
+      const response = await api.post('/api/plans', {App_Acronym}, {withCredentials: true})
+      console.log(response.data);
+      return response.data.planNames;
     } catch(error) {
       if(error.status === 401){
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
+  }
+
+  async function getUser(){
+  // get user data
+    try {
+      const response = await api.get('/api/user', { withCredentials: true });
+      return response.data.user;
+    } catch (error) {
+      toast.error(error.response.data.error);
+    }
+  }
+
+  async function getTasks() {
+    try {
+      const response = await api.post('/api/tasks', {App_Acronym}, { withCredentials: true });
+      return response.data;
+    } catch (error) {
+      if (error.status === 401) {
         goto('/login');
       }
       toast.error(error.response.data.error);
@@ -93,32 +161,35 @@
   onMount(async () => {
     // get app details
     appDetails = await getApplication();
-    // add plan
-
+    tasks = await getTasks();
   })
 
 </script>
 
 <Modal bind:showModal={showPlanModal}>
   <div class="create-plan-modal">
-    <h1>Create Application</h1>
-    <div class="create-plan-form">
-      <label for="app-name">App Name:</label>
-      <input readonly type="text" name="app-name" placeholder="Name" bind:value={newPlan.Plan_app_Acronym}/>
-      <label for="plan-name" >Plan Name:</label>
-      <input type="text" name="plan-name" placeholder="Text" bind:value={newPlan.Plan_MVP_name}/>
-      <label for="start-date">Start Date:</label>
-      <input type="date" name="start-date" placeholder="" bind:value={newPlan.Plan_startDate}/>
-      <label for="end-date">End Date:</label>
-      <input type="date" name="end-date" placeholder="" bind:value={newPlan.Plan_endDate}/>
-      <label for="color">Color:</label>
-      <select bind:value={newPlan.Plan_color}>
-        <option value="red">red</option>
-        <option value="green">green</option>
-        <option value="blue">blue</option>
-      </select>
+    <h1>Create Plan</h1>
+    <div class="form-group">
+      <label for="app-acronym">App Acronym:</label>
+      <input type="text" name="app-acronym" placeholder="App Acronym" bind:value={newPlan.Plan_app_Acronym}/>
     </div>
-    <div class="create-app-buttons">
+    <div class="form-group">
+      <label for="plan-name">Plan MVP Name:</label>
+      <input type="text" name="plan-name" placeholder="Plan MVP Name" bind:value={newPlan.Plan_MVP_name}/>
+    </div>
+    <div class="form-group">
+      <label for="start-date">Start Date:</label>
+      <input type="date" name="start-date" placeholder="DD/MM/YYYY" bind:value={newPlan.Plan_startDate}/>
+    </div>
+    <div class="form-group">
+      <label for="end-date">End Date:</label>
+      <input type="date" name="end-date" placeholder="DD/MM/YYYY" bind:value={newPlan.Plan_endDate}/>
+    </div>
+    <div class="form-group">
+      <label for="color">Color:</label>
+      <input type="color" name="color" bind:value={newPlan.Plan_color}/>
+    </div>
+    <div class="modal-buttons">
       <button on:click={handleCreatePlan}>Create</button>
       <button on:click={togglePlanModal}>Cancel</button>
     </div>
@@ -126,36 +197,58 @@
 </Modal>
 
 <Modal bind:showModal={showAddTaskModal}>
-  <div class="task-details-modal">
-    <h1>App_Acronym_apprnumber</h1>
-  <div class="modal-body">
-    <div class="edit-task-form">
-        <label for="task-id">Task ID:</label>
-        <p>TASKID</p>
-        <label for="task-name">Task Name:</label>
-        <input type="text" name="task-name" placeholder="Task Name" bind:value={newTask.Task_name}/>
-        <label for="task-description">Task Description:</label>
-        <input type="text" name="task-description" placeholder="Task Description" bind:value={newTask.Task_description}/>
-        <label for="task-plan-name">Plan Name:</label>
-        <p>{newTask.Task_plan}</p>
-        <label for="task-state">Task State:</label>
-        <p>{newTask.Task_state}</p>
-        <label for="task-creator">Task Creator:</label>
-        <p>{newTask.Task_creator}</p>
-        <label for="task-owner">Task Owner:</label>
-        <p>{newTask.Task_owner}</p>
-        <label for="task-create-date">Task Create Date:</label>
-        <p>{newTask.Task_createDate}</p>
+  <h1>Create Task</h1>
+  <div class="add-task-modal">
+    <div>
+    <div class="form-group">
+      <label for="task-id">Task ID:</label>
+      <input type="text" name="task-id" placeholder="Task ID" bind:value={currentTaskId}/>
     </div>
-    <div class="task-notes">
-      <div class="notes">{newTask.ask_notes}</div>
-      <textarea class="add-notes"/>
+    <div class="form-group">
+      <label for="task-name">Task Name:</label>
+      <input type="text" name="task-name" placeholder="Task Name" bind:value={newTask.Task_name}/>
+    </div>
+    <div class="form-group">
+      <label for="task-description">Task Description:</label>
+      <textarea name="task-description" bind:value={newTask.task_description}></textarea>
+    </div>
+    <div class="form-group">
+      <label for="plan-name">Plan Name:</label>
+      <select name="plan-name" bind:value={newTask.Task_plan}>
+        {#each plans as plan}
+          <option>{plan}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="task-state">Task State:</label>
+      <input type="text" name="task-state" bind:value={newTask.Task_state}/>
+    </div>
+    <div class="form-group">
+      <label for="task-creator">Task Creator:</label>
+      <input type="text" name="task-creator" bind:value={currentUsername}/>
+    </div>
+    <div class="form-group">
+      <label for="task-owner">Task Owner:</label>
+      <input type="text" name="task-owner" bind:value={currentUsername}/>
+    </div>
+    <div class="form-group">
+      <label for="task-create-date">Task Create Date:</label>
+      <input type="text" name="task-create-date" bind:value={createDate}/>
     </div>
   </div>
-  <div class="modal-footer">
-    <button>Create Task</button>
-    <button on:click={toggleAddTaskModal}>Cancel</button>
+  <div class="task-notes">
+    <div class="notes">{newTask.Task_notes}</div>
+    <div class="add-notes">
+      <textarea class="text-box"/>
+      <button>Add Note</button>
+    </div>
+
   </div>
+</div>
+<div class="modal-buttons">
+  <button on:click={handleAddTask}>Create Task</button>
+  <button on:click={toggleAddTaskModal}>Cancel</button>
 </div>
 </Modal>
 
@@ -173,7 +266,7 @@
         <button class="add-task" on:click={toggleAddTaskModal}>+ TASK</button>
       </div>
       {#each tasks as task}
-      {#if task.task_state === "Open"}
+      {#if task.Task_state === "Open"}
         <TaskCard bind:taskDetails={task}/>
       {/if}
       {/each}
@@ -183,7 +276,7 @@
         <h3>Todo</h3>
       </div>
       {#each tasks as task}
-      {#if task.task_state === "Todo"}
+      {#if task.Task_state === "Todo"}
         <TaskCard bind:taskDetails={task}/>
       {/if}
       {/each}
@@ -193,7 +286,7 @@
         <h3>Doing</h3>
       </div>
       {#each tasks as task}
-      {#if task.task_state === "Doing"}
+      {#if task.Task_state === "Doing"}
         <TaskCard bind:taskDetails={task}/>
       {/if}
       {/each}
@@ -203,7 +296,7 @@
         <h3>Done</h3>
       </div>
       {#each tasks as task}
-      {#if task.task_state === "Done"}
+      {#if task.Task_state === "Done"}
         <TaskCard bind:taskDetails={task}/>
       {/if}
       {/each}
@@ -213,7 +306,7 @@
         <h3>Closed</h3>
       </div>
       {#each tasks as task}
-      {#if task.task_state === "Closed"}
+      {#if task.Task_state === "Closed"}
         <TaskCard bind:taskDetails={task}/>
       {/if}
       {/each}
@@ -233,20 +326,7 @@
   .create-plan-modal {
     display: flex;
     flex-direction: column;
-    width: 500px;
-    height: 350px;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .create-plan-form {
-    display: grid;
-    grid-template-columns: 1fr 4fr;
-    gap: 5px;
-    width: 100%;
-    justify-items: center;
-    align-items: center;
-    margin: 20px;
+    text-align: center;
   }
 
   button {
@@ -266,16 +346,11 @@
   }
 
   input {
-    width: 95%;
     padding: 5px 0px 5px 5px;
     margin: 5px 0;
     border: 1px solid #ccc;
     border-radius: 5px;
     box-shadow: 0 0 10px rgba(0,0,0,0.1)
-  }
-
-  select {
-    width: 95%;
   }
 
   input:focus {
@@ -299,7 +374,7 @@
     background-color: #eee;
     margin: 10px;
     padding: 10px;
-    min-height: 430px;
+    min-height: 80vh;
   }
 
   .add-task {
@@ -310,5 +385,78 @@
     display: flex;
     justify-content: space-between;
     height: 30px;
+  }
+
+  .add-task-modal {
+    text-align: center;
+    display: grid;
+    grid-template-columns: 1fr 4fr;
+  }
+
+  .form-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .form-group label {
+    width: 100px;
+    font-weight: bold;
+  }
+
+  .form-group input, select, textarea {
+    background-color: #ccc;
+    width: 200px;
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    outline: none;
+    margin-top: 10px;
+  }
+
+  .modal-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .form-group input[type="color"] {
+    padding: 2px;
+  }
+
+  textarea {
+    resize: none;
+  }
+
+  .task-notes {
+    display: grid;
+    grid-template-rows: 3fr 1fr;
+    width: 700px;
+    height: 95%;
+    padding: 15px;
+  }
+
+  .notes {
+    width: 97%;
+    word-wrap: wrap;
+    overflow: auto;
+    border: 2px solid black;
+    padding: 10px;
+  }
+
+  .add-notes {
+    display: flex;
+    width: 100%;
+  }
+  
+  .text-box {
+    width: 100%;
+  }
+
+  .add-notes button {
+    margin-top: 10px;
+    background-color: black;
   }
 </style>

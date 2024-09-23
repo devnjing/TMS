@@ -3,23 +3,24 @@
   import { goto } from "$app/navigation";
   import {api} from "$api";
 	import { toast } from "svelte-sonner";
-  import {ApplicationCard, Modal, GroupTags} from "$components";
+  import {ApplicationCard, Modal} from "$components";
 
+  let showAppModal = false;
   let applications = [];
-
+  let groups = [];
   let newApp = {      
     App_Acronym: '',
     App_Description: '',
     App_Rnumber: 0,
     App_startDate: '',
     App_endDate: '',
-    App_permit_Create: [],
-    App_permit_Open: [], 
-    App_permit_toDoList: [],
-    App_permit_Doing: [],
-    App_permit_Done: [],
+    App_permit_Create: '',
+    App_permit_Open: '', 
+    App_permit_toDoList: '',
+    App_permit_Doing: '',
+    App_permit_Done: '',
   }
-  let showAppModal = false;
+
 
   async function createApplication(newApp) {
     try {
@@ -33,8 +34,17 @@
     }
   }
 
-  function toggleAppModal() {
+  async function toggleAppModal() {
     showAppModal = !showAppModal;
+    try {
+		const response = await api.get('/api/groups', { withCredentials: true });
+		groups = response.data;
+	  } catch (error) {
+		  if (error.status === 401) {
+			  goto('/login');
+		  }
+		  toast.error(error.response.data.error);
+	  }
   }
 
   async function handleCreateApp() {
@@ -45,11 +55,11 @@
       App_Rnumber: 0,
       App_startDate: '',
       App_endDate: '',
-      App_permit_Create: [],
-      App_permit_Open: [], 
-      App_permit_toDoList: [],
-      App_permit_Doing: [],
-      App_permit_Done: [],
+      App_permit_Create:'',
+      App_permit_Open: '', 
+      App_permit_toDoList: '',
+      App_permit_Doing: '',
+      App_permit_Done: '',
     }
     applications = await getApplications();
   }
@@ -66,40 +76,81 @@
       toast.error(error.response.data.error);
     }
   }
+
   onMount(async () => {
     applications = await getApplications();
     console.log(applications);
   })
+
 </script>
 <Modal bind:showModal={showAppModal}>
   <div class="create-app-modal">
     <h1>Create Application</h1>
-    <div class="create-app-form">
+    <div class="form-group">
       <label for="app-acronym">App Acronym:</label>
-      <input type="text" name="app-acronym" placeholder="Name" bind:value={newApp.App_Acronym}/>
-      <label for="app-r-number" >App R-Number:</label>
-      <input type="number" name="app-r-number" placeholder="Number" bind:value={newApp.App_Rnumber}/>
+      <input type="text" name="app-acronym" placeholder="App Acronym" bind:value={newApp.App_Acronym}/>
+    </div>
+    <div class="form-group">
+      <label for="app-rnumber">App R number:</label>
+      <input type="text" name="app-rumber" placeholder="App R number" bind:value={newApp.App_Rnumber}/>
+    </div>
+    <div class="form-group">
+      <label for="app-rnumber">App R number:</label>
+      <input type="text" name="app-rumber" placeholder="App R number" bind:value={newApp.App_Rnumber}/>
+    </div>
+    <div class="form-group">
       <label for="app-description">App Description:</label>
-      <textarea name="app-description" placeholder="" bind:value={newApp.App_Description}/>
-      <label for="start-date">Start Date:</label>
-      <input type="date" name="start-date" placeholder="" bind:value={newApp.App_startDate}/>
-      <label for="end-date">End Date:</label>
-      <input type="date" name="end-date" placeholder="" bind:value={newApp.App_endDate}/>
+      <textarea name="app-description" bind:value={newApp.App_Description}/>
     </div>
-    <h2>Task Permissions</h2>
-    <div class="create-app-form">      
-      <label for="create">Create:</label>
-      <GroupTags name="create"editTags=true bind:selected={newApp.App_permit_Create}/>
-      <label for="open">Open:</label>
-      <GroupTags name="open"editTags=true bind:selected={newApp.App_permit_Open}/>
-      <label for="todo">ToDo:</label>
-      <GroupTags name="todo"editTags=true bind:selected={newApp.App_permit_toDoList}/>
-      <label for="doing">Doing:</label>
-      <GroupTags name="doing"editTags=true bind:selected={newApp.App_permit_Doing}/>
-      <label for="done">Done:</label>
-      <GroupTags name="done"editTags=true bind:selected={newApp.App_permit_Done}/>
+    <div class="form-group">
+      <label for="app-startdate">Start Date:</label>
+      <input type="date" name="app-startdate" placeholder="DD/MM/YYYY" bind:value={newApp.App_startDate}/>
     </div>
-    <div class="create-app-buttons">
+    <div class="form-group">
+      <label for="app-enddate">End Date:</label>
+      <input type="date" name="app-enddate" placeholder="DD/MM/YYYY" bind:value={newApp.App_endDate}/>
+    </div>
+    <div class="form-group">
+      <label for="create">Permit Create:</label>
+      <select name="create" bind:value={newApp.App_permit_Create}>
+        {#each groups as group}
+          <option value={group}>{group}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="open">Permit Open:</label>
+      <select name="open" bind:value={newApp.App_permit_Open}>
+        {#each groups as group}
+          <option value={group}>{group}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="todo">Permit ToDo:</label>
+      <select name="todo" bind:value={newApp.App_permit_toDoList}>
+        {#each groups as group}
+          <option value={group}>{group}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="doing">Permit Doing:</label>
+      <select name="doing" bind:value={newApp.App_permit_Doing}>
+        {#each groups as group}
+          <option value={group}>{group}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="done">Permit Create:</label>
+      <select name="done" bind:value={newApp.App_permit_Done}>
+        {#each groups as group}
+          <option value={group}>{group}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="modal-buttons">
       <button on:click={handleCreateApp}>Create</button>
       <button on:click={toggleAppModal}>Cancel</button>
     </div>
@@ -109,7 +160,6 @@
 <div>
   <div class="top-bar">
     <h1>Applications</h1>
-    <h1>edit app button</h1>
     <button class="add-groups" on:click={toggleAppModal}>+ APPLICATION</button>
   </div>
   <div class="applications-container">
@@ -122,6 +172,38 @@
 
 <style>
 
+  .create-app-modal {
+    text-align: center;
+    width: 500px;
+    height: 650px;
+  }
+
+  .form-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .form-group label {
+    width: 200px;
+    font-weight: bold;
+  }
+
+  .form-group input, textarea, select {
+    background-color: #ccc;
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    outline: none;
+    margin-top: 10px;
+  }
+
+  textarea {
+    resize: none;
+  }
+
 .top-bar {
       display: flex;
       justify-content: space-between;
@@ -133,24 +215,6 @@
     grid-template-columns: 1fr 1fr;
     gap: 10px;
     justify-items: center;
-  }
-
-  .create-app-modal {
-    display: flex;
-    flex-direction: column;
-    width: 700px;
-    height: 600px;
-    align-items: center;
-  }
-
-  .create-app-form {
-    display: grid;
-    grid-template-columns: 1fr 4fr;
-    gap: 5px;
-    width: 100%;
-    justify-items: center;
-    align-items: center;
-    margin: 20px;
   }
 
   button {
@@ -169,32 +233,10 @@
       background-color: rgba(0,0,0,0.5);
   }
 
-  .create-app-buttons {
+  .modal-buttons {
     display: flex;
     justify-content: center;
     gap: 10px;
-  }
-
-  input {
-    width: 95%;
-    padding: 5px 0px 5px 5px;
-    margin: 5px 0;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1)
-  }
-
-  input:focus {
-    border-color: #aaa;
-    box-shadow: 0 0 1px rgba(0,0,0,0.3);
-  }
-
-  input:hover {
-    border-color: #aaa;
-  }
-  textarea {
-    resize: none;
-    width: 535px;
-    height: 100px;
+    margin-top: 10px;
   }
 </style>
