@@ -14,6 +14,8 @@
   let plans = [];
   let currentUser;
   let currentUsername;
+  let newNote;
+
 
   $: currentTaskId = appDetails.App_Acronym + "_" + appDetails.App_Rnumber;
 
@@ -39,6 +41,15 @@
       Task_owner: "Current User",
       Task_createDate: "",
     }
+  
+    let hasPermits = {
+    hasCreatePermit: false,
+    hasOpenPermit: false,
+    hasToDoListPermit: false,
+    hasDoingPermit: false,
+    hasDonePermit: false
+  }
+
 
   function togglePlanModal() {
     showPlanModal = !showPlanModal;
@@ -85,7 +96,7 @@
     newTask.Task_creator = currentUsername;
     newTask.Task_owner = currentUsername;
     newTask.Task_createDate = createDate;
-    console.log(newTask);
+    newTask.Task_notes = newNote;
     try {
       const response = await api.post('/api/task', {task: newTask}, { withCredentials: true });
       toast.success(response.data.success);
@@ -101,6 +112,7 @@
         Task_owner: "Current User",
         Task_createDate: "",
       }
+      newNote = "";
     } catch (error) {
       if (error.status === 401) {
         goto('/login');
@@ -125,7 +137,6 @@
   async function getPlans() {
     try{
       const response = await api.post('/api/plans', {App_Acronym}, {withCredentials: true})
-      console.log(response.data);
       return response.data.planNames;
     } catch(error) {
       if(error.status === 401){
@@ -157,11 +168,40 @@
     }
   }
 
+  async function checkPermits() {
+    try {
+      const response = await api.post('/api/task/permits', {App_Acronym}, { withCredentials: true });
+      hasPermits = response.data;
+    } catch(error) {
+      console.log(error);
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
+  }
+
+  async function handleCancel() {
+    newTask = {
+      Task_id: "",
+      Task_plan: "",
+      Task_app_Acronym: "",
+      Task_name: "",
+      task_description: "",
+      Task_notes: "",
+      Task_state: "Open",
+      Task_creator: "Current User",
+      Task_owner: "Current User",
+      Task_createDate: "",
+    }
+    await toggleAddTaskModal();
+  }
 
   onMount(async () => {
     // get app details
     appDetails = await getApplication();
     tasks = await getTasks();
+    await checkPermits();
   })
 
 </script>
@@ -171,7 +211,7 @@
     <h1>Create Plan</h1>
     <div class="form-group">
       <label for="app-acronym">App Acronym:</label>
-      <input type="text" name="app-acronym" placeholder="App Acronym" bind:value={newPlan.Plan_app_Acronym}/>
+      <p>{appDetails.App_Acronym}</p>
     </div>
     <div class="form-group">
       <label for="plan-name">Plan MVP Name:</label>
@@ -202,11 +242,11 @@
     <div>
     <div class="form-group">
       <label for="task-id">Task ID:</label>
-      <input type="text" name="task-id" placeholder="Task ID" bind:value={currentTaskId}/>
+      <p>{currentTaskId}</p>
     </div>
     <div class="form-group">
       <label for="task-name">Task Name:</label>
-      <input type="text" name="task-name" placeholder="Task Name" bind:value={newTask.Task_name}/>
+      <input required type="text" name="task-name" placeholder="Task Name" bind:value={newTask.Task_name}/>
     </div>
     <div class="form-group">
       <label for="task-description">Task Description:</label>
@@ -222,33 +262,32 @@
     </div>
     <div class="form-group">
       <label for="task-state">Task State:</label>
-      <input type="text" name="task-state" bind:value={newTask.Task_state}/>
+      <p>{newTask.Task_state}</p>
     </div>
     <div class="form-group">
       <label for="task-creator">Task Creator:</label>
-      <input type="text" name="task-creator" bind:value={currentUsername}/>
+      <p>{currentUsername}</p>
     </div>
     <div class="form-group">
       <label for="task-owner">Task Owner:</label>
-      <input type="text" name="task-owner" bind:value={currentUsername}/>
+      <p>{currentUsername}</p>
     </div>
     <div class="form-group">
       <label for="task-create-date">Task Create Date:</label>
-      <input type="text" name="task-create-date" bind:value={createDate}/>
+      <p>{createDate}</p>
     </div>
   </div>
   <div class="task-notes">
-    <div class="notes">{newTask.Task_notes}</div>
+    <pre class="notes">{newTask.Task_notes}</pre>
     <div class="add-notes">
-      <textarea class="text-box"/>
-      <button>Add Note</button>
+      <textarea class="text-box" bind:value={newNote}/>
     </div>
 
   </div>
 </div>
 <div class="modal-buttons">
-  <button on:click={handleAddTask}>Create Task</button>
-  <button on:click={toggleAddTaskModal}>Cancel</button>
+  <button style="background-color: green; color: white;" on:click={handleAddTask}>Create Task</button>
+  <button on:click={handleCancel}>Cancel</button>
 </div>
 </Modal>
 
@@ -263,7 +302,9 @@
     <div class="state-container">
       <div class="state-header">
         <h3>Open</h3>
+        {#if hasPermits.hasCreatePermit}
         <button class="add-task" on:click={toggleAddTaskModal}>+ TASK</button>
+        {/if}
       </div>
       {#each tasks as task}
       {#if task.Task_state === "Open"}
@@ -326,7 +367,7 @@
   .create-plan-modal {
     display: flex;
     flex-direction: column;
-    text-align: center;
+    text-align: left;
   }
 
   button {
@@ -388,7 +429,7 @@
   }
 
   .add-task-modal {
-    text-align: center;
+    text-align: left;
     display: grid;
     grid-template-columns: 1fr 4fr;
   }
@@ -402,6 +443,11 @@
   .form-group label {
     width: 100px;
     font-weight: bold;
+  }
+
+  .form-group p {
+    padding: 10px;
+    margin-top: 10px;
   }
 
   .form-group input, select, textarea {
@@ -440,10 +486,12 @@
 
   .notes {
     width: 97%;
+    max-height: 280px;
     word-wrap: wrap;
     overflow: auto;
     border: 2px solid black;
     padding: 10px;
+    text-align: left;
   }
 
   .add-notes {

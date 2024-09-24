@@ -6,12 +6,12 @@
   import {ApplicationCard, Modal} from "$components";
 
   let showAppModal = false;
-  let applications = [];
+  $: applications = [];
   let groups = [];
   let newApp = {      
     App_Acronym: '',
     App_Description: '',
-    App_Rnumber: 0,
+    App_Rnumber: '',
     App_startDate: '',
     App_endDate: '',
     App_permit_Create: '',
@@ -21,18 +21,6 @@
     App_permit_Done: '',
   }
 
-
-  async function createApplication(newApp) {
-    try {
-      const response = await api.post('/api/applications', {application: newApp}, { withCredentials: true });
-      toast.success(response.data.success);
-    } catch (error) {
-      if (error.status === 401) {
-        goto('/login');
-      }
-      toast.error(error.response.data.error);
-    }
-  }
 
   async function toggleAppModal() {
     showAppModal = !showAppModal;
@@ -47,24 +35,50 @@
 	  }
   }
 
-  async function handleCreateApp() {
-    await createApplication(newApp);
+  async function handleCancel(){
     newApp = {      
-      App_Acronym: '',
-      App_Description: '',
-      App_Rnumber: 0,
-      App_startDate: '',
-      App_endDate: '',
-      App_permit_Create:'',
-      App_permit_Open: '', 
-      App_permit_toDoList: '',
-      App_permit_Doing: '',
-      App_permit_Done: '',
+    App_Acronym: '',
+    App_Description: '',
+    App_Rnumber: '',
+    App_startDate: '',
+    App_endDate: '',
+    App_permit_Create: '',
+    App_permit_Open: '', 
+    App_permit_toDoList: '',
+    App_permit_Doing: '',
+    App_permit_Done: '',
+  }
+  await toggleAppModal();
+  }
+
+  async function handleCreateApp() {
+    try {
+      console.log(newApp);
+      const response = await api.post('/api/applications', {application: newApp}, { withCredentials: true });
+      toast.success(response.data.success);
+      newApp = {      
+        App_Acronym: '',
+        App_Description: '',
+        App_Rnumber: '',
+        App_startDate: '',
+        App_endDate: '',
+        App_permit_Create: '',
+        App_permit_Open: '', 
+        App_permit_toDoList: '',
+        App_permit_Doing: '',
+        App_permit_Done: '',
+      }
+      applications = await getApplications();
+    } catch (error) {
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
     }
-    applications = await getApplications();
   }
 
   async function getApplications() {
+    console.log("getting applications");
     try {
       const response = await api.get('/api/applications', { withCredentials: true });
       console.log(response.data);
@@ -79,7 +93,6 @@
 
   onMount(async () => {
     applications = await getApplications();
-    console.log(applications);
   })
 
 </script>
@@ -89,10 +102,6 @@
     <div class="form-group">
       <label for="app-acronym">App Acronym:</label>
       <input type="text" name="app-acronym" placeholder="App Acronym" bind:value={newApp.App_Acronym}/>
-    </div>
-    <div class="form-group">
-      <label for="app-rnumber">App R number:</label>
-      <input type="text" name="app-rumber" placeholder="App R number" bind:value={newApp.App_Rnumber}/>
     </div>
     <div class="form-group">
       <label for="app-rnumber">App R number:</label>
@@ -152,7 +161,7 @@
     </div>
     <div class="modal-buttons">
       <button on:click={handleCreateApp}>Create</button>
-      <button on:click={toggleAppModal}>Cancel</button>
+      <button on:click={handleCancel}>Cancel</button>
     </div>
   </div>
 </Modal>
@@ -174,8 +183,6 @@
 
   .create-app-modal {
     text-align: center;
-    width: 500px;
-    height: 650px;
   }
 
   .form-group {
@@ -213,8 +220,8 @@
   .applications-container {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    justify-items: center;
+    align-items: center;
+    justify-content: center;
   }
 
   button {

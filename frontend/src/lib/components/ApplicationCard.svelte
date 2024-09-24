@@ -9,6 +9,7 @@ import {toast} from "svelte-sonner";
 export let appDetails = [];
 let showAppModal = false;
 let groups = [];
+let startDateFormatted, endDateFormatted;
 
 const handleEnterApp = () => {
   goto(`/applications/${appDetails.App_Acronym}`);
@@ -28,15 +29,14 @@ async function toggleAppModal() {
   }
 
   async function handleEditApp() {
-    let tempStartDate = appDetails.App_startDate;
-    let tempEndDate = appDetails.App_endDate;
-    appDetails.App_startDate = startDateHtml;
-    appDetails.App_endDate = endDateHtml;
     try {
       const response = await api.post('/api/application/update', {application: appDetails}, { withCredentials: true });
       toast.success(response.data.success);
-      appDetails.App_startDate = tempStartDate;
-      appDetails.App_endDate = tempEndDate;
+      showAppModal = false;
+      await getAppDetails();
+      startDateFormatted = formatDate(appDetails.App_startDate);
+      endDateFormatted = formatDate(appDetails.App_endDate);
+
     } catch(error) {
       if (error.status === 401) {
         goto('/login');
@@ -45,33 +45,44 @@ async function toggleAppModal() {
     }
   }
 
-  function convertDateFormat(dateString) {
-    const [day, month, year] = dateString.split('/');
-    return `${year}-${month}-${day}`;
+  async function getAppDetails(){
+    try {
+      const response = await api.post('/api/application', {App_Acronym: appDetails.App_Acronym}, { withCredentials: true });
+      appDetails = response.data;
+    } catch(error){
+      if(error.status === 401){
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
   }
-  let startDateHtml, endDateHtml;
+
+  async function handleCancel(){
+    await toggleAppModal();
+     await getAppDetails();
+  }
+
+  function formatDate(dateString) {
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
+  }
 
   onMount(() => {
-    startDateHtml = convertDateFormat(appDetails.App_startDate);
-    endDateHtml = convertDateFormat(appDetails.App_endDate);
+    startDateFormatted = formatDate(appDetails.App_startDate);
+    endDateFormatted = formatDate(appDetails.App_endDate);
   })
 
 </script>
-
 <Modal bind:showModal={showAppModal}>
   <div class="create-app-modal">
     <h1>Edit Application</h1>
     <div class="form-group">
       <label for="app-acronym">App Acronym:</label>
-      <input type="text" name="app-acronym" placeholder="App Acronym" bind:value={appDetails.App_Acronym}/>
+      <p>{appDetails.App_Acronym}</p>
     </div>
     <div class="form-group">
       <label for="app-rnumber">App R number:</label>
-      <input type="text" name="app-rumber" placeholder="App R number" bind:value={appDetails.App_Rnumber}/>
-    </div>
-    <div class="form-group">
-      <label for="app-rnumber">App R number:</label>
-      <input type="text" name="app-rumber" placeholder="App R number" bind:value={appDetails.App_Rnumber}/>
+      <p>{appDetails.App_Rnumber}</p>
     </div>
     <div class="form-group">
       <label for="app-description">App Description:</label>
@@ -79,11 +90,11 @@ async function toggleAppModal() {
     </div>
     <div class="form-group">
       <label for="app-startdate">Start Date:</label>
-      <input type="date" name="app-startdate" placeholder="DD/MM/YYYY" bind:value={startDateHtml}/>
+      <input type="date" name="app-startdate" bind:value={appDetails.App_startDate}/>
     </div>
     <div class="form-group">
       <label for="app-enddate">End Date:</label>
-      <input type="date" name="app-enddate" placeholder="DD/MM/YYYY" bind:value={endDateHtml}/>
+      <input type="date" name="app-enddate" bind:value={appDetails.App_endDate}/>
     </div>
     <div class="form-group">
       <label for="create">Permit Create:</label>
@@ -126,8 +137,8 @@ async function toggleAppModal() {
       </select>
     </div>
     <div class="modal-buttons">
-      <button on:click={handleEditApp}>Create</button>
-      <button on:click={toggleAppModal}>Cancel</button>
+      <button on:click={handleEditApp}>Save</button>
+      <button on:click={handleCancel}>Cancel</button>
     </div>
   </div>
 </Modal>
@@ -135,45 +146,69 @@ async function toggleAppModal() {
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <div class="application-card" on:click={handleEnterApp}>
-  <div class="card-title">
-    <h1>{appDetails.App_Acronym}</h1>
-    <button on:click|stopPropagation={toggleAppModal} class="edit-button"><FaEdit/></button>
-  </div>
+<div class="group">
+  <h3>App Acronym:</h3>
+  <p>{appDetails.App_Acronym}</p>
+</div>
+<div class="group">
+  <h3>App Description:</h3>
+  <pre>{appDetails.App_Description}</pre>
+</div>
+<div class="group">
+  <h3>Start Date:</h3>
+  <p>{startDateFormatted}</p>
+</div>
+<div class="group">
+  <h3>End Date:</h3>
+  <p>{endDateFormatted}</p>
+</div>
+<div class='edit-icon'>
+  <button class="edit-button" on:click|stopPropagation={toggleAppModal}><FaEdit/></button>
+</div>
 
-  <p><b>App Description</b> {appDetails.App_Description}</p>
-  <p><b>Start Date</b> {appDetails.App_startDate}</p>
-  <p><b>End Date</b> {appDetails.App_endDate}</p>
 </div>
 
 <style>
-.application-card {
-  width: 650px;
-  height: 200px;
-  padding: 20px;
-  margin: 10px;
-  background-color: #eee;
-}
-.application-card:hover {
-  cursor: pointer;
-  background-color: rgba(0, 0, 0, 0.1);
-}
-p {
-  margin-top: 10px;
-}
-
-.edit-button{
-    background-color: transparent;
-    border: none;
-    color: #a1a1a1;
-    width: 48px;
-    cursor: pointer;
+  .application-card {
+    width: 90%;
+    height: 70%;
+    background-color: #e0e0e0;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    position: relative;
+    margin: 20px;
   }
 
-.card-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+  .group {
+    display: flex;
+    align-items: top;
+    width: 100%;
+    margin-bottom: 20px;
+  }
+
+  .group h3 {
+    width: 200px;
+    margin-right: 10px;
+  }
+  .group p {
+    width: 100%;
+  }
+
+  .group pre {
+    overflow-y: scroll;
+    overflow-x: hidden;
+    min-height: 100px;
+    max-height: 100px;
+    width: 100%;
+    border: 1px solid #ccc;
+    padding: 10px;
+  }
+
+  .application-card:hover {
+    cursor: pointer;
+    background-color: rgba(0, 0, 0, 0.1);
+  }
 
 
   button {
@@ -209,8 +244,6 @@ p {
 
   .create-app-modal {
     text-align: center;
-    width: 500px;
-    height: 650px;
   }
 
   .form-group {
@@ -241,4 +274,15 @@ p {
     gap: 10px;
     margin-top: 10px;
   }
+
+  .edit-button {
+    background-color: transparent;
+    color: #a1a1a1;
+    width: 48px;
+  }
+  .edit-icon {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+}
 </style>

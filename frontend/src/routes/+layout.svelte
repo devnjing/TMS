@@ -5,7 +5,7 @@
   import {Toaster} from 'svelte-sonner';
 </script>
 
-<Toaster position="bottom-right" richColors/>
+<Toaster style="z-index: 9999 !important;" position="bottom-right" richColors/>
 {#if !$page.url.pathname.endsWith('/login')}
   <Navbar/>
 {/if}

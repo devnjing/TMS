@@ -5,7 +5,23 @@
   import {toast} from "svelte-sonner";
 
   export let taskDetails = [];
-  // TODO: get plan color
+  let newNote;
+  const tempDetails = {
+    taskName: taskDetails.Task_name,
+    taskDescription: taskDetails.Task_description,
+    taskPlan: taskDetails.Task_plan,
+    taskNotes: taskDetails.Task_notes,
+
+  };
+  let taskColor = "white";
+  let showTaskDetailsModal = false;
+  let hasPermits = {
+    hasCreatePermit: false,
+    hasOpenPermit: false,
+    hasToDoListPermit: false,
+    hasDoingPermit: false,
+    hasDonePermit: false
+  }
 
   async function updateColor(){
     try {
@@ -19,12 +35,9 @@
     }
   }
 
-  let taskColor = "white";
-
-  let showTaskDetailsModal = false;
-
-  function toggleTaskDetailsModal() {
+  async function toggleTaskDetailsModal() {
     showTaskDetailsModal = !showTaskDetailsModal;
+    await checkPermits();
   }
 
   async function handleUpdateTask(newState = taskDetails.Task_state) {
@@ -41,13 +54,54 @@
     }
   }
 
+  async function handleSaveTask(){
+    if(taskDetails.Task_notes === "" || taskDetails.Task_notes === null){
+      taskDetails.Task_notes = newNote;     
+    } else {
+      taskDetails.Task_notes = `${taskDetails.Task_notes}\n\n${newNote}` || newNote;
+
+    }
+    try{
+      const response = await api.post('/api/task/update', {task: taskDetails}, { withCredentials: true });
+      toast.success(response.data.success);
+    } catch (error) {
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
+    newNote = "";
+    await toggleTaskDetailsModal();
+  }
+
+  async function checkPermits() {
+    try {
+      const response = await api.post('/api/task/permits', {App_Acronym: taskDetails.Task_app_Acronym}, { withCredentials: true });
+      hasPermits = response.data;
+    } catch(error) {
+      console.log(error);
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
+  }
+
+  async function handleCancel() {
+    taskDetails.Task_notes = tempDetails.taskNotes;
+    taskDetails.Task_name = tempDetails.taskName;
+    taskDetails.Task_description = tempDetails.taskDescription;
+    taskDetails.Task_plan = tempDetails.taskPlan;
+    await toggleTaskDetailsModal(); 
+  }
+
   onMount(() => {
     updateColor();
   })
 </script>
 
 <Modal bind:showModal={showTaskDetailsModal}>
-  <h1>Create Task</h1>
+  <h1>Edit Task</h1>
   <div class="update-task-modal">
     <div>
     <div class="form-group">
@@ -84,77 +138,31 @@
     </div>
   </div>
   <div class="task-notes">
-    <div class="notes">{taskDetails.Task_notes}</div>
+    <pre class="notes">{taskDetails.Task_notes}</pre>
     <div class="add-notes">
-      <textarea class="text-box"/>
-      <button>Add Note</button>
+      <textarea class="text-box" bind:value={newNote} placeholder="Comments"/>
     </div>
 
   </div>
 </div>
 <div class="modal-buttons">
-  {#if taskDetails.Task_state === "Open"}
-    <button on:click={() => handleUpdateTask("Todo")} style="background-color: green; color: white;">Release Task</button>
-  {:else if taskDetails.Task_state === "Todo"}
-    <button on:click={() => handleUpdateTask("Doing")} style="background-color: green; color: white;">Take On</button>
-  {:else if taskDetails.Task_state === "Doing"}
-    <button on:click={() => handleUpdateTask("Done")} style="background-color: green; color: white;">To Review</button>
-    <button on:click={() => handleUpdateTask("Done")} style="background-color: red; color: white;">Forfeit Task</button>
-  {:else if taskDetails.Task_state === "Done"}
-    <button on:click={() => handleUpdateTask("Closed")} style="background-color: green; color: white;">Approve Task</button>
-    <button on:click={() => handleUpdateTask("Doing")} style="background-color: red; color: white;">Reject Task</button>
+  {#if taskDetails.Task_state === "Open" && hasPermits.hasOpenPermit}
+    <button on:click={() => handleUpdateTask("Todo")} class="promote">Release Task</button>
+  {:else if taskDetails.Task_state === "Todo" && hasPermits.hasToDoListPermit}
+    <button on:click={() => handleUpdateTask("Doing")} class="promote">Take On</button>
+  {:else if taskDetails.Task_state === "Doing" && hasPermits.hasDoingPermit}
+    <button on:click={() => handleUpdateTask("Done")} class="promote">To Review</button>
+    <button on:click={() => handleUpdateTask("Todo")} class="demote">Forfeit Task</button>
+  {:else if taskDetails.Task_state === "Done" && hasPermits.hasDonePermit}
+    <button on:click={() => handleUpdateTask("Closed")} class="promote">Approve Task</button>
+    <button on:click={() => handleUpdateTask("Doing")} class="demote">Reject Task</button>
   {/if}
   {#if taskDetails.Task_state !== "Closed"}
-    <button>Save</button>
+    <button on:click={handleSaveTask}>Save</button>
   {/if}
-  <button on:click={toggleTaskDetailsModal}>Cancel</button>
+  <button on:click={handleCancel}>Cancel</button>
 
 </div>
-  <!-- <div class="task-details-modal">
-    <h1>{taskDetails.Task_id}</h1>
-  <div class="modal-body">
-    <div class="edit-task-form">
-        <label for="task-id">Task ID:</label>
-        <p>{taskDetails.Task_id}</p>
-        <label for="task-name">Task Name:</label>
-        <input type="text" name="task-name" placeholder="Task Name" bind:value={taskDetails.Task_name}/>
-        <label for="task-description">Task Description:</label>
-        <input type="text" name="task-description" placeholder="Task Description" bind:value={taskDetails.Task_description}/>
-        <label for="task-plan-name">Plan Name:</label>
-        <p>{taskDetails.Task_plan}</p>
-        <label for="task-state">Task State:</label>
-        <p>{taskDetails.Task_state}</p>
-        <label for="task-creator">Task Creator:</label>
-        <p>{taskDetails.Task_creator}</p>
-        <label for="task-owner">Task Owner:</label>
-        <p>{taskDetails.Task_owner}</p>
-        <label for="task-create-date">Task Create Date:</label>
-        <p>{taskDetails.Task_createDate}</p>
-    </div>
-    <div class="task-notes">
-      <div class="notes">{taskDetails.Task_notes}</div>
-      <textarea class="add-notes"/>
-    </div>
-  </div>
-  <div class="modal-footer">
-    {#if taskDetails.Task_state === "Open"}
-      <button on:click={() => handleUpdateTask("Todo")} style="background-color: green; color: white;">Release Task</button>
-    {:else if taskDetails.Task_state === "Todo"}
-      <button on:click={() => handleUpdateTask("Doing")} style="background-color: green; color: white;">Take On</button>
-    {:else if taskDetails.Task_state === "Doing"}
-      <button on:click={() => handleUpdateTask("Done")} style="background-color: green; color: white;">To Review</button>
-      <button on:click={() => handleUpdateTask("Done")} style="background-color: red; color: white;">Forfeit Task</button>
-    {:else if taskDetails.Task_state === "Done"}
-      <button on:click={() => handleUpdateTask("Closed")} style="background-color: green; color: white;">Approve Task</button>
-      <button on:click={() => handleUpdateTask("Doing")} style="background-color: red; color: white;">Reject Task</button>
-    {/if}
-    {#if taskDetails.Task_state !== "Closed"}
-      <button>Save</button>
-    {/if}
-    <button on:click={toggleTaskDetailsModal}>Cancel</button>
-
-  </div>
-</div> -->
 </Modal>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -263,6 +271,7 @@
     overflow: auto;
     border: 2px solid black;
     padding: 10px;
+    text-align: left;
   }
 
   .add-notes {
@@ -277,5 +286,15 @@
   .add-notes button {
     margin-top: 10px;
     background-color: black;
+  }
+
+  .promote {
+    background-color: green;
+    color: white;
+  }
+
+  .demote {
+    background-color: red;
+    color: white;
   }
 </style>

@@ -18,6 +18,6 @@ router.route("/plan/color").post(isAuthorized(), getPlanColor);
 router.route("/task").post(isAuthorized(), addTask);
 router.route("/tasks").post(isAuthorized(), getTasksByAppAcronym);
 router.route("/task/update").post(isAuthorized(), updateTask);
-router.route("task/permits").post(isAuthorized(), checkPermits);
+router.route("/task/permits").post(isAuthorized(), checkPermits);
 
 module.exports = router;
