@@ -5,7 +5,20 @@
   import {toast} from "svelte-sonner";
 
   export let taskDetails = [];
+  export let currentUser;
   let newNote;
+  let plans = [];
+  let planIsChanged = false;
+  let newPlan = taskDetails.Task_plan;
+
+  function planUpdate () {
+    if (newPlan !== taskDetails.Task_plan)
+      planIsChanged = true;
+    else {
+      planIsChanged = false;
+    }
+  }
+
   const tempDetails = {
     taskName: taskDetails.Task_name,
     taskDescription: taskDetails.Task_description,
@@ -43,6 +56,12 @@
   async function handleUpdateTask(newState = taskDetails.Task_state) {
     // TODO update owner
     taskDetails.Task_state = newState;
+    if (taskDetails.Task_notes === "" || taskDetails.Task_notes === null) {
+      taskDetails.Task_notes = newNote;
+    } else if (!(newNote === "" || newNote === null || newNote === undefined)) {
+      taskDetails.Task_notes = `${taskDetails.Task_notes}\n\n${newNote}`;
+    }
+    taskDetails.Task_plan = newPlan;
     try {
       const response = await api.post('/api/task/update', {task: taskDetails}, { withCredentials: true });
       toast.success(response.data.success);
@@ -56,11 +75,12 @@
 
   async function handleSaveTask(){
     if(taskDetails.Task_notes === "" || taskDetails.Task_notes === null){
-      taskDetails.Task_notes = newNote;     
-    } else {
-      taskDetails.Task_notes = `${taskDetails.Task_notes}\n\n${newNote}` || newNote;
-
+      taskDetails.Task_notes = newNote;
+    } else if (!(newNote === "")) {
+      taskDetails.Task_notes = `${taskDetails.Task_notes}\n\n${newNote}`;
     }
+    taskDetails.Task_owner = currentUser.username;
+    taskDetails.Task_plan = newPlan;
     try{
       const response = await api.post('/api/task/update', {task: taskDetails}, { withCredentials: true });
       toast.success(response.data.success);
@@ -92,69 +112,120 @@
     taskDetails.Task_name = tempDetails.taskName;
     taskDetails.Task_description = tempDetails.taskDescription;
     taskDetails.Task_plan = tempDetails.taskPlan;
+    newPlan = tempDetails.taskPlan;
     await toggleTaskDetailsModal(); 
   }
 
-  onMount(() => {
+  async function getPlans() {
+    try{
+      const response = await api.post('/api/plans', {App_Acronym: taskDetails.Task_app_Acronym}, {withCredentials: true})
+      return response.data.planNames;
+    } catch(error) {
+      if(error.status === 401){
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
+  }
+
+  onMount(async () => {
     updateColor();
+    plans = await getPlans();
+    console.log(plans);
   })
 </script>
 
-<Modal bind:showModal={showTaskDetailsModal}>
+<Modal bind:showModal={showTaskDetailsModal}> 
   <h1>Edit Task</h1>
   <div class="update-task-modal">
-    <div>
-    <div class="form-group">
+    <div class="task-details">
+    <div class="readonly-group">
       <label for="task-id">Task ID:</label>
-      <input type="text" name="task-id" placeholder="Task ID" bind:value={taskDetails.Task_id}/>
+      <p>{taskDetails.Task_id}</p>
     </div>
+    {#if taskDetails.Task_state === "Open" && hasPermits.hasOpenPermit}
     <div class="form-group">
       <label for="task-name">Task Name:</label>
       <input type="text" name="task-name" placeholder="Task Name" bind:value={taskDetails.Task_name}/>
     </div>
+      {:else}
+      <div class="readonly-group">
+        <label for="task-name">Task Name:</label>
+        <p>{taskDetails.Task_name}</p>
+      </div>
+      {/if}
+      {#if taskDetails.Task_state === "Open" && hasPermits.hasOpenPermit}
     <div class="form-group">
       <label for="task-description">Task Description:</label>
       <textarea name="task-description" bind:value={taskDetails.Task_description}></textarea>
     </div>
-    <div class="form-group">
-      <label for="plan-name">Plan Name:</label>
-      <input type="text" name="plan-name" bind:value={taskDetails.Task_plan}/>
-    </div>
-    <div class="form-group">
+      {:else}
+      <div class="readonly-group">
+        <label for="task-description">Task Description:</label>
+        {#if taskDetails.Task_description === null}
+          <p>No Description</p>
+          {:else}
+          <pre>{taskDetails.Task_description}</pre>
+        {/if}
+      </div>
+      {/if}
+      {#if (taskDetails.Task_state === "Open" || taskDetails.Task_state === "Done") && hasPermits.hasOpenPermit}
+      <div class="form-group">
+        <label for="plan-name">Plan Name:</label>
+        <select name="plan-name" bind:value={newPlan} on:change={planUpdate}>
+          {#each plans as plan}
+            <option>{plan}</option>
+          {/each}
+        </select>
+      </div>
+      {:else}
+      <div class="readonly-group">
+        <label for="plan-name">Plan Name:</label>
+        <p>{taskDetails.Task_plan}</p>
+      </div>
+      {/if}
+
+    <div class="readonly-group">
       <label for="task-state">Task State:</label>
-      <input type="text" name="task-state" bind:value={taskDetails.Task_state}/>
+      <p>{taskDetails.Task_state}</p>
     </div>
-    <div class="form-group">
+    <div class="readonly-group">
       <label for="task-creator">Task Creator:</label>
-      <input type="text" name="task-creator" bind:value={taskDetails.Task_creator}/>
+      <p>{taskDetails.Task_creator}</p>
     </div>
-    <div class="form-group">
+    <div class="readonly-group">
       <label for="task-owner">Task Owner:</label>
-      <input type="text" name="task-owner" bind:value={taskDetails.Task_owner}/>
+      <p>{taskDetails.Task_owner}</p>
     </div>
-    <div class="form-group">
+    <div class="readonly-group">
       <label for="task-create-date">Task Create Date:</label>
-      <input type="text" name="task-create-date" bind:value={taskDetails.Task_createDate}/>
+      <p>{taskDetails.Task_createDate}</p>
     </div>
   </div>
   <div class="task-notes">
-    <pre class="notes">{taskDetails.Task_notes}</pre>
+    {#if taskDetails.Task_notes === null}
+      <pre class="notes">No Notes Added</pre>
+    {:else}
+      <pre class="notes">{taskDetails.Task_notes}</pre>
+    {/if}
+    {#if taskDetails.Task_state !== "Closed"}
     <div class="add-notes">
-      <textarea class="text-box" bind:value={newNote} placeholder="Comments"/>
+      <textarea class="text-box" bind:value={newNote} placeholder="Comments" />
     </div>
+    {/if}
 
   </div>
 </div>
 <div class="modal-buttons">
   {#if taskDetails.Task_state === "Open" && hasPermits.hasOpenPermit}
-    <button on:click={() => handleUpdateTask("Todo")} class="promote">Release Task</button>
+    <button on:click={() => handleUpdateTask("Todo")} class="promote" >Release Task</button>
   {:else if taskDetails.Task_state === "Todo" && hasPermits.hasToDoListPermit}
-    <button on:click={() => handleUpdateTask("Doing")} class="promote">Take On</button>
+    <button on:click={() => handleUpdateTask("Doing")} class="promote" >Take On</button>
   {:else if taskDetails.Task_state === "Doing" && hasPermits.hasDoingPermit}
-    <button on:click={() => handleUpdateTask("Done")} class="promote">To Review</button>
+    <button on:click={() => handleUpdateTask("Done") } class="promote" >To Review</button>
     <button on:click={() => handleUpdateTask("Todo")} class="demote">Forfeit Task</button>
   {:else if taskDetails.Task_state === "Done" && hasPermits.hasDonePermit}
-    <button on:click={() => handleUpdateTask("Closed")} class="promote">Approve Task</button>
+    <button on:click={() => handleUpdateTask("Closed")} class="promote" disabled={planIsChanged}>Approve Task</button>
     <button on:click={() => handleUpdateTask("Doing")} class="demote">Reject Task</button>
   {/if}
   {#if taskDetails.Task_state !== "Closed"}
@@ -169,13 +240,24 @@
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <div class="task-card" on:click={toggleTaskDetailsModal} style={`border-color: ${taskColor}`}>
   <div class="task-card-header">
-    <div>{taskDetails.Task_id}</div>
-    <div>{taskDetails.Task_name}</div>
-    <div>{taskDetails.Task_owner}</div>
+    <div><b>{taskDetails.Task_id}</b></div>
+    <div class="task-name">{taskDetails.Task_name}</div>
+    <div class="task-owner">{taskDetails.Task_owner}</div>
   </div>
 </div>
 
 <style>
+  .task-name {
+    margin-top: 10px;
+  }
+  .task-owner {
+    border-radius: 5px;
+    background-color: #0095ff;
+    color: white;
+    width: fit-content;
+    padding: 5px;
+    margin-top: 10px;
+  }
 
   .task-card {
     background-color: white;
@@ -224,9 +306,10 @@
   }
 
   .update-task-modal {
-    text-align: center;
+    text-align: left;
     display: grid;
     grid-template-columns: 1fr 4fr;
+    height: 500px;
   }
 
   .form-group {
@@ -236,11 +319,11 @@
   }
 
   .form-group label {
-    width: 100px;
+    width: 150px;
     font-weight: bold;
   }
 
-  .form-group input, textarea {
+  .form-group input, textarea, select {
     background-color: #ccc;
     width: 200px;
     padding: 10px;
@@ -257,6 +340,7 @@
     gap: 10px;
     margin-top: 10px;
   }
+  
   .task-notes {
     display: grid;
     grid-template-rows: 3fr 1fr;
@@ -267,6 +351,7 @@
 
   .notes {
     width: 97%;
+    max-height: 320px;
     word-wrap: wrap;
     overflow: auto;
     border: 2px solid black;
@@ -283,11 +368,6 @@
     width: 100%;
   }
 
-  .add-notes button {
-    margin-top: 10px;
-    background-color: black;
-  }
-
   .promote {
     background-color: green;
     color: white;
@@ -297,4 +377,26 @@
     background-color: red;
     color: white;
   }
+
+  .task-details {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .readonly-group {
+    display: flex;
+    margin-top: 10px;
+    text-align: left;
+  }
+
+  .readonly-group label {
+    width: 150px;
+    font-weight: bold;
+  }
+
+  button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 </style>

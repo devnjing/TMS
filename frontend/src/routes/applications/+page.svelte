@@ -20,6 +20,13 @@
     App_permit_Doing: '',
     App_permit_Done: '',
   }
+  let currentUser = {
+    username: '',
+    email: '',
+    password: '',
+    user_group: [],
+    accountStatus: 'active'
+  };
 
 
   async function toggleAppModal() {
@@ -91,11 +98,23 @@
     }
   }
 
+  async function getUser(){
+  // get user data
+    try {
+      const response = await api.get('/api/user', { withCredentials: true });
+      return response.data.user;
+    } catch (error) {
+      toast.error(error.response.data.error);
+    }
+  }
+
   onMount(async () => {
     applications = await getApplications();
+    currentUser = await getUser();
   })
 
 </script>
+
 <Modal bind:showModal={showAppModal}>
   <div class="create-app-modal">
     <h1>Create Application</h1>
@@ -169,7 +188,9 @@
 <div>
   <div class="top-bar">
     <h1>Applications</h1>
+    {#if currentUser.username === "pl"}
     <button class="add-groups" on:click={toggleAppModal}>+ APPLICATION</button>
+    {/if}
   </div>
   <div class="applications-container">
     {#each applications as app}

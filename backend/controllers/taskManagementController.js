@@ -55,9 +55,9 @@ exports.getApplications = async (req, res) => {
     for (app of applications) {
       // convert from epoch to date
       app.App_startDate = new Date(app.App_startDate * 1000);
-      app.App_startDate = formatDate(app.App_startDate);
+      app.App_startDate = formatDateYYYYMMDD(app.App_startDate);
       app.App_endDate = new Date(app.App_endDate * 1000);
-      app.App_endDate = formatDate(app.App_endDate);
+      app.App_endDate = formatDateYYYYMMDD(app.App_endDate);
     }
     res.status(200).json(applications);
   } catch (error) {
@@ -72,9 +72,9 @@ exports.getApplicationByAppAcronym = async (req, res) => {
   try {
     const application = await executeQuery(query, params);
     application[0].App_startDate = new Date(application[0].App_startDate * 1000);
-    application[0].App_startDate = formatDate(application[0].App_startDate);
+    application[0].App_startDate = formatDateYYYYMMDD(application[0].App_startDate);
     application[0].App_endDate = new Date(application[0].App_endDate * 1000);
-    application[0].App_endDate = formatDate(application[0].App_endDate);
+    application[0].App_endDate = formatDateYYYYMMDD(application[0].App_endDate);
     res.status(200).json(application[0]);
   } catch (error) {
     res.status(500).json({ error: "Failed to get application" });
@@ -134,6 +134,14 @@ exports.getTasksByAppAcronym = async (req, res) => {
   const params = [App_Acronym];
   try {
     const tasks = await executeQuery(query, params);
+    for (task of tasks) {
+      // convert from epoch to date
+      task.Task_createDate = new Date(task.Task_createDate * 1000);
+      console.log(task.Task_createDate);
+      task.Task_createDate = formatDateDDMMYYYY(task.Task_createDate);
+      console.log(task.Task_createDate);
+    }
+    console.log(tasks);
     res.status(200).json(tasks);
   } catch (error) {
     console.log(error);
@@ -157,8 +165,8 @@ exports.getPlanColor = async (req, res) => {
 exports.updateTask = async (req, res) => {
   try {
     const { task } = req.body;
-    const query = "UPDATE task SET Task_plan = ?, Task_name = ?, Task_description = ?, Task_notes = ?, Task_state = ?, Task_owner = ? WHERE Task_id = ?";
-    const params = [task.Task_plan, task.Task_name, task.Task_description, task.Task_notes, task.Task_state, task.Task_owner, task.Task_id];
+    const query = "UPDATE task SET Task_name = ?, Task_description = ?, Task_plan = ?, Task_notes = ?, Task_state = ?, Task_owner = ? WHERE Task_id = ?";
+    const params = [task.Task_name, task.Task_description, task.Task_plan, task.Task_notes, task.Task_state, task.Task_owner, task.Task_id];
     await executeQuery(query, params);
     res.status(200).json({ success: "Task updated successfully" });
   } catch (error) {
@@ -166,6 +174,19 @@ exports.updateTask = async (req, res) => {
     res.status(500).json({ error: "Failed to update task" });
   }
 };
+
+// exports.updateNotes = async (req, res) => {
+//   try {
+//     const { notes, Task_id } = req.body;
+//     const query = "UPDATE task SET Task_notes = ? WHERE Task_id = ?";
+//     const params = [notes, Task_id];
+//     await executeQuery(query, params);
+//     res.status(200).json({ success: "Notes updated successfully" });
+//   } catch (error) {
+//     console.log(error);
+//     res.status(500).json({ error: "Failed to update notes" });
+//   }
+// };
 
 exports.updateApplication = async (req, res) => {
   try {
@@ -253,10 +274,18 @@ async function decodeToken(token) {
   }
 }
 
-function formatDate(dateString) {
+function formatDateYYYYMMDD(dateString) {
   const date = new Date(dateString);
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatDateDDMMYYYY(dateString) {
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 }
