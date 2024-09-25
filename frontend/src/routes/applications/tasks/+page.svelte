@@ -1,18 +1,29 @@
 <script>
-  import {page} from "$app/stores";
   import {Modal, TaskCard} from "$components";
   import {onMount} from "svelte";
   import {toast} from "svelte-sonner";
   import {api} from '$api';
   import {goto} from "$app/navigation";
+  import {selectedApp} from "../../../stores/appData";
   
-  let App_Acronym = $page.params.app;
+  let App_Acronym;
+
+  $: selectedApp.subscribe(value => {
+      App_Acronym = value;
+    });
+
   let showPlanModal = false;
   let showAddTaskModal = false;
   let tasks = [];
   let appDetails = {};
   let plans = [];
-  let currentUser;
+  let currentUser = {
+    username: '',
+    email: '',
+    password: '',
+    user_group: [],
+    accountStatus: 'active'
+  };
   let currentUsername;
   let newNote;
 
@@ -96,6 +107,8 @@
     newTask.Task_creator = currentUsername;
     newTask.Task_owner = currentUsername;
     newTask.Task_createDate = createDate;
+    console.log(createDate);
+    console.log(newTask.Task_createDate);
     newTask.Task_notes = newNote;
     try {
       const response = await api.post('/api/task', {task: newTask}, { withCredentials: true });
@@ -113,6 +126,8 @@
         Task_createDate: "",
       }
       newNote = "";
+      tasks = await getTasks();
+      showAddTaskModal = !showAddTaskModal;
     } catch (error) {
       if (error.status === 401) {
         goto('/login');
@@ -187,7 +202,7 @@
       Task_plan: "",
       Task_app_Acronym: "",
       Task_name: "",
-      task_description: "",
+      Task_description: "",
       Task_notes: "",
       Task_state: "Open",
       Task_creator: "Current User",
@@ -198,10 +213,14 @@
   }
 
   onMount(async () => {
-    // get app details
-    appDetails = await getApplication();
-    tasks = await getTasks();
-    await checkPermits();
+    if(App_Acronym === null){
+      goto('/applications');
+    } else {
+      appDetails = await getApplication();
+      tasks = await getTasks();
+      await checkPermits();
+      currentUser = await getUser();
+    }
   })
 
 </script>
@@ -239,8 +258,8 @@
 <Modal bind:showModal={showAddTaskModal}>
   <h1>Create Task</h1>
   <div class="add-task-modal">
-    <div>
-    <div class="form-group">
+    <div class="task-details">
+    <div class="readonly-group">
       <label for="task-id">Task ID:</label>
       <p>{currentTaskId}</p>
     </div>
@@ -250,7 +269,7 @@
     </div>
     <div class="form-group">
       <label for="task-description">Task Description:</label>
-      <textarea name="task-description" bind:value={newTask.task_description}></textarea>
+      <textarea name="task-description" bind:value={newTask.Task_description}></textarea>
     </div>
     <div class="form-group">
       <label for="plan-name">Plan Name:</label>
@@ -260,19 +279,19 @@
         {/each}
       </select>
     </div>
-    <div class="form-group">
+    <div class="readonly-group">
       <label for="task-state">Task State:</label>
       <p>{newTask.Task_state}</p>
     </div>
-    <div class="form-group">
+    <div class="readonly-group">
       <label for="task-creator">Task Creator:</label>
       <p>{currentUsername}</p>
     </div>
-    <div class="form-group">
+    <div class="readonly-group">
       <label for="task-owner">Task Owner:</label>
       <p>{currentUsername}</p>
     </div>
-    <div class="form-group">
+    <div class="readonly-group">
       <label for="task-create-date">Task Create Date:</label>
       <p>{createDate}</p>
     </div>
@@ -280,7 +299,7 @@
   <div class="task-notes">
     <pre class="notes">{newTask.Task_notes}</pre>
     <div class="add-notes">
-      <textarea class="text-box" bind:value={newNote}/>
+      <textarea class="text-box" bind:value={newNote} placeholder="Comments"/>
     </div>
 
   </div>
@@ -296,7 +315,9 @@
 <div>
   <div class="top-bar">
     <h1>Task Management Board: {App_Acronym}</h1>
+    {#if currentUser.username === "pl"}
     <button class="add-groups" on:click={togglePlanModal}>+ PLAN</button>
+    {/if}
   </div>
   <div class="tasks-container">
     <div class="state-container">
@@ -308,7 +329,7 @@
       </div>
       {#each tasks as task}
       {#if task.Task_state === "Open"}
-        <TaskCard bind:taskDetails={task}/>
+        <TaskCard bind:taskDetails={task} currentUser={currentUser}/>
       {/if}
       {/each}
     </div>
@@ -318,7 +339,7 @@
       </div>
       {#each tasks as task}
       {#if task.Task_state === "Todo"}
-        <TaskCard bind:taskDetails={task}/>
+      <TaskCard bind:taskDetails={task} currentUser={currentUser}/>
       {/if}
       {/each}
     </div>
@@ -328,7 +349,7 @@
       </div>
       {#each tasks as task}
       {#if task.Task_state === "Doing"}
-        <TaskCard bind:taskDetails={task}/>
+      <TaskCard bind:taskDetails={task} currentUser={currentUser}/>
       {/if}
       {/each}
     </div>
@@ -338,7 +359,7 @@
       </div>
       {#each tasks as task}
       {#if task.Task_state === "Done"}
-        <TaskCard bind:taskDetails={task}/>
+      <TaskCard bind:taskDetails={task} currentUser={currentUser}/>
       {/if}
       {/each}
     </div>
@@ -348,7 +369,7 @@
       </div>
       {#each tasks as task}
       {#if task.Task_state === "Closed"}
-        <TaskCard bind:taskDetails={task}/>
+      <TaskCard bind:taskDetails={task} currentUser={currentUser}/>
       {/if}
       {/each}
     </div>
@@ -432,6 +453,7 @@
     text-align: left;
     display: grid;
     grid-template-columns: 1fr 4fr;
+    height: 500px;
   }
 
   .form-group {
@@ -439,15 +461,10 @@
     justify-content: space-between;
     align-items: center;
   }
-
+  
   .form-group label {
-    width: 100px;
+    width: 150px;
     font-weight: bold;
-  }
-
-  .form-group p {
-    padding: 10px;
-    margin-top: 10px;
   }
 
   .form-group input, select, textarea {
@@ -459,6 +476,17 @@
     border-radius: 4px;
     outline: none;
     margin-top: 10px;
+  }
+
+  .readonly-group {
+    display: flex;
+    margin-top: 10px;
+    text-align: left;
+  }
+
+  .readonly-group label {
+    width: 150px;
+    font-weight: bold;
   }
 
   .modal-buttons {
@@ -484,9 +512,15 @@
     padding: 15px;
   }
 
+  .task-details {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
   .notes {
     width: 97%;
-    max-height: 280px;
+    max-height: 320px;
     word-wrap: wrap;
     overflow: auto;
     border: 2px solid black;
@@ -501,10 +535,5 @@
   
   .text-box {
     width: 100%;
-  }
-
-  .add-notes button {
-    margin-top: 10px;
-    background-color: black;
   }
 </style>

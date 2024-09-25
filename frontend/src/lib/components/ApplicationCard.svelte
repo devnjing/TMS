@@ -5,6 +5,7 @@ import FaEdit from "svelte-icons/fa/FaEdit.svelte";
 import {Modal} from "$components";
 import {api} from "$api";
 import {toast} from "svelte-sonner";
+import {selectedApp} from "../../stores/appData";
 
 export let appDetails = [];
 let showAppModal = false;
@@ -12,7 +13,8 @@ let groups = [];
 let startDateFormatted, endDateFormatted;
 
 const handleEnterApp = () => {
-  goto(`/applications/${appDetails.App_Acronym}`);
+  selectedApp.set(appDetails.App_Acronym);
+  goto('/applications/tasks');
 }
 
 async function toggleAppModal() {
@@ -203,6 +205,7 @@ async function toggleAppModal() {
     width: 100%;
     border: 1px solid #ccc;
     padding: 10px;
+    text-wrap: wrap;
   }
 
   .application-card:hover {
