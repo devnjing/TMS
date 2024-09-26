@@ -63,6 +63,12 @@ exports.getUser = async (req, res) => {
   try {
     let decoded = await decodeToken(req.cookies.token); // get username from token
     const user = await getUserByUname(decoded.username);
+
+    // get user's groups
+    const query = "SELECT user_group FROM usergroup WHERE username = ?";
+    const params = [decoded.username];
+    const groups = await executeQuery(query, params);
+    user.groups = groups.map(({ user_group }) => user_group);
     res.status(200).json({ user });
   } catch (error) {
     res.status(500).json({ error: "Failed to get user" });

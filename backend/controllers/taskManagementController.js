@@ -1,10 +1,10 @@
 const jwt = require("jsonwebtoken");
 const { executeQuery } = require("../db");
+const nodemailer = require("nodemailer");
 
 exports.addApplication = async (req, res) => {
   try {
     const { application } = req.body;
-    console.log(application);
     // check mandatory fields
     if (!application.App_Acronym || !application.App_Rnumber || !application.App_startDate || !application.App_endDate) {
       return res.status(500).json({ error: "Missing mandatory fields" });
@@ -49,9 +49,18 @@ exports.addApplication = async (req, res) => {
 };
 
 exports.getApplications = async (req, res) => {
-  const query = "SELECT * FROM application";
+  const { username } = req.body;
+  console.log(username);
+  const query = `SELECT a.* FROM application a JOIN usergroup u 
+                ON u.user_group = a.App_permit_Create
+                OR u.user_group = a.App_permit_Open
+                OR u.user_group = a.App_permit_toDoList
+                OR u.user_group = a.App_permit_Doing
+                OR u.user_group = a.App_permit_Done
+                WHERE u.username = ?`;
+  const params = [username];
   try {
-    const applications = await executeQuery(query);
+    const applications = await executeQuery(query, params);
     for (app of applications) {
       // convert from epoch to date
       app.App_startDate = new Date(app.App_startDate * 1000);
@@ -137,11 +146,8 @@ exports.getTasksByAppAcronym = async (req, res) => {
     for (task of tasks) {
       // convert from epoch to date
       task.Task_createDate = new Date(task.Task_createDate * 1000);
-      console.log(task.Task_createDate);
       task.Task_createDate = formatDateDDMMYYYY(task.Task_createDate);
-      console.log(task.Task_createDate);
     }
-    console.log(tasks);
     res.status(200).json(tasks);
   } catch (error) {
     console.log(error);
@@ -175,18 +181,30 @@ exports.updateTask = async (req, res) => {
   }
 };
 
-// exports.updateNotes = async (req, res) => {
-//   try {
-//     const { notes, Task_id } = req.body;
-//     const query = "UPDATE task SET Task_notes = ? WHERE Task_id = ?";
-//     const params = [notes, Task_id];
-//     await executeQuery(query, params);
-//     res.status(200).json({ success: "Notes updated successfully" });
-//   } catch (error) {
-//     console.log(error);
-//     res.status(500).json({ error: "Failed to update notes" });
-//   }
-// };
+exports.updateTaskAndEmail = async (req, res) => {
+  try {
+    const { task } = req.body;
+    const query = "UPDATE task SET Task_name = ?, Task_description = ?, Task_plan = ?, Task_notes = ?, Task_state = ?, Task_owner = ? WHERE Task_id = ?";
+    const params = [task.Task_name, task.Task_description, task.Task_plan, task.Task_notes, task.Task_state, task.Task_owner, task.Task_id];
+    if (task.Task_state === "Done") {
+      // get app permits
+      const query2 = `SELECT a.email FROM accounts a 
+                      JOIN usergroup u ON u.username = a.username 
+                      JOIN application app ON u.user_group = app.App_permit_Done
+                      WHERE app.App_Acronym = ?`;
+      const params2 = [task.Task_app_Acronym];
+      const users = await executeQuery(query2, params2);
+      const emails = users.map(email => email.email);
+      // email users in permit_Done
+      sendEmail([emails], "Task Completed", `Your task ${task.Task_name} has been completed.`);
+    }
+    await executeQuery(query, params);
+    res.status(200).json({ success: "Task updated successfully" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Failed to update task" });
+  }
+};
 
 exports.updateApplication = async (req, res) => {
   try {
@@ -288,4 +306,30 @@ function formatDateDDMMYYYY(dateString) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
+}
+
+function sendEmail(recipients, subject, text) {
+  console.log("sending email");
+  var transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+
+  var mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: recipients.join(", "),
+    subject: subject,
+    text: text
+  };
+
+  transporter.sendMail(mailOptions, function (error, info) {
+    if (error) {
+      console.log(error);
+    } else {
+      console.log("Email sent: " + info.response);
+    }
+  });
 }

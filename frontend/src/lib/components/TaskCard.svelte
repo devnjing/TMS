@@ -54,7 +54,6 @@
   }
 
   async function handleUpdateTask(newState = taskDetails.Task_state) {
-    // TODO update owner
     taskDetails.Task_state = newState;
     if (taskDetails.Task_notes === "" || taskDetails.Task_notes === null) {
       taskDetails.Task_notes = newNote;
@@ -62,8 +61,16 @@
       taskDetails.Task_notes = `${taskDetails.Task_notes}\n\n${newNote}`;
     }
     taskDetails.Task_plan = newPlan;
+    console.log("before try");
     try {
-      const response = await api.post('/api/task/update', {task: taskDetails}, { withCredentials: true });
+      let response;
+      if(taskDetails.Task_state === "Done") {
+        console.log("done");
+        response = await api.post('/api/task/update-with-email', {task: taskDetails}, { withCredentials: true });
+      } else {
+        console.log("rest");
+        response = await api.post('/api/task/update', {task: taskDetails}, { withCredentials: true });
+      }
       toast.success(response.data.success);
     } catch(error) {
       if (error.status === 401) {
@@ -131,7 +138,6 @@
   onMount(async () => {
     updateColor();
     plans = await getPlans();
-    console.log(plans);
   })
 </script>
 

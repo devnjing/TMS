@@ -1,6 +1,6 @@
 <script>
   import {Modal, TaskCard} from "$components";
-  import {onMount} from "svelte";
+  import {onDestroy, onMount} from "svelte";
   import {toast} from "svelte-sonner";
   import {api} from '$api';
   import {goto} from "$app/navigation";
@@ -21,7 +21,7 @@
     username: '',
     email: '',
     password: '',
-    user_group: [],
+    groups: [],
     accountStatus: 'active'
   };
   let currentUsername;
@@ -107,8 +107,6 @@
     newTask.Task_creator = currentUsername;
     newTask.Task_owner = currentUsername;
     newTask.Task_createDate = createDate;
-    console.log(createDate);
-    console.log(newTask.Task_createDate);
     newTask.Task_notes = newNote;
     try {
       const response = await api.post('/api/task', {task: newTask}, { withCredentials: true });
@@ -228,7 +226,7 @@
 <Modal bind:showModal={showPlanModal}>
   <div class="create-plan-modal">
     <h1>Create Plan</h1>
-    <div class="form-group">
+    <div class="readonly-group">
       <label for="app-acronym">App Acronym:</label>
       <p>{appDetails.App_Acronym}</p>
     </div>
@@ -315,7 +313,7 @@
 <div>
   <div class="top-bar">
     <h1>Task Management Board: {App_Acronym}</h1>
-    {#if currentUser.username === "pl"}
+    {#if currentUser.groups.includes("pm")}
     <button class="add-groups" on:click={togglePlanModal}>+ PLAN</button>
     {/if}
   </div>
@@ -388,7 +386,6 @@
   .create-plan-modal {
     display: flex;
     flex-direction: column;
-    text-align: left;
   }
 
   button {

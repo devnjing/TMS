@@ -11,6 +11,7 @@ export let appDetails = [];
 let showAppModal = false;
 let groups = [];
 let startDateFormatted, endDateFormatted;
+export let currentUser;
 
 const handleEnterApp = () => {
   selectedApp.set(appDetails.App_Acronym);
@@ -164,9 +165,11 @@ async function toggleAppModal() {
   <h3>End Date:</h3>
   <p>{endDateFormatted}</p>
 </div>
+{#if currentUser.groups.includes("pl")}
 <div class='edit-icon'>
   <button class="edit-button" on:click|stopPropagation={toggleAppModal}><FaEdit/></button>
 </div>
+{/if}
 
 </div>
 

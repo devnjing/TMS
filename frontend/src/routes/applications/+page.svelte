@@ -24,7 +24,7 @@
     username: '',
     email: '',
     password: '',
-    user_group: [],
+    groups: [],
     accountStatus: 'active'
   };
 
@@ -60,7 +60,6 @@
 
   async function handleCreateApp() {
     try {
-      console.log(newApp);
       const response = await api.post('/api/applications', {application: newApp}, { withCredentials: true });
       toast.success(response.data.success);
       newApp = {      
@@ -85,10 +84,9 @@
   }
 
   async function getApplications() {
-    console.log("getting applications");
     try {
-      const response = await api.get('/api/applications', { withCredentials: true });
-      console.log(response.data);
+      console.log(currentUser.username);
+      const response = await api.post('/api/applications/by-permit', {username: currentUser.username},{ withCredentials: true });
       return response.data;
     } catch (error) {
       if (error.status === 401) {
@@ -109,8 +107,8 @@
   }
 
   onMount(async () => {
-    applications = await getApplications();
     currentUser = await getUser();
+    applications = await getApplications();
   })
 
 </script>
@@ -188,13 +186,13 @@
 <div>
   <div class="top-bar">
     <h1>Applications</h1>
-    {#if currentUser.username === "pl"}
+    {#if currentUser.groups.includes("pl")}
     <button class="add-groups" on:click={toggleAppModal}>+ APPLICATION</button>
     {/if}
   </div>
   <div class="applications-container">
     {#each applications as app}
-    <ApplicationCard bind:appDetails={app}/>
+    <ApplicationCard bind:appDetails={app} currentUser={currentUser}/>
     {/each}
   </div>
 </div>

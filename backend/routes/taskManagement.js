@@ -1,16 +1,15 @@
 const express = require("express");
 const router = express.Router();
 const { isAuthorized, allowedGroups } = require("../middlewares/auth");
-const { addTask, addApplication, getApplications, addPlan, getPlansByAppAcronym, getApplicationByAppAcronym, getTasksByAppAcronym, getPlanColor, updateTask, updateApplication, checkPermits } = require("../controllers/taskManagementController");
+const { updateTaskAndEmail, addTask, addApplication, getApplications, addPlan, getPlansByAppAcronym, getApplicationByAppAcronym, getTasksByAppAcronym, getPlanColor, updateTask, updateApplication, checkPermits } = require("../controllers/taskManagementController");
 
 //app management
-router.route("/applications").get(isAuthorized(), getApplications);
-router.route("/applications").post(isAuthorized(), addApplication);
+router.route("/applications/by-permit").post(isAuthorized(), getApplications);
+router.route("/applications").post(isAuthorized(), allowedGroups("pl"), addApplication);
 router.route("/application").post(isAuthorized(), getApplicationByAppAcronym);
-router.route("/application/update").post(isAuthorized(), updateApplication);
-
+router.route("/application/update").post(isAuthorized(), allowedGroups("pl"), updateApplication);
 //plan management
-router.route("/plan").post(isAuthorized(), addPlan);
+router.route("/plan").post(isAuthorized(), allowedGroups("pm"), addPlan);
 router.route("/plans").post(isAuthorized(), getPlansByAppAcronym);
 router.route("/plan/color").post(isAuthorized(), getPlanColor);
 
@@ -18,6 +17,8 @@ router.route("/plan/color").post(isAuthorized(), getPlanColor);
 router.route("/task").post(isAuthorized(), addTask);
 router.route("/tasks").post(isAuthorized(), getTasksByAppAcronym);
 router.route("/task/update").post(isAuthorized(), updateTask);
+router.route("/task/update-with-email").post(isAuthorized(), updateTaskAndEmail);
+
 router.route("/task/permits").post(isAuthorized(), checkPermits);
 
 module.exports = router;
