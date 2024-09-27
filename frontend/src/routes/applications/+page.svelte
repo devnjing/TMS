@@ -5,9 +5,40 @@
 	import { toast } from "svelte-sonner";
   import {ApplicationCard, Modal} from "$components";
 
-  let showAppModal = false;
-  $: applications = [];
+  let applications = [];
+  async function getApplications() {
+    try {
+      const response = await api.get('/api/applications/by-permit', { withCredentials: true });
+      return response.data;
+    } catch (error) {
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
+  }
+
   let groups = [];
+  async function getAllGroups() {
+    try {
+		const response = await api.get('/api/groups', { withCredentials: true });
+		groups = response.data;
+	  } catch (error) {
+		  if (error.status === 401) {
+			  goto('/login');
+		  }
+		  toast.error(error.response.data.error);
+	  }
+  }
+
+  let showAppModal = false;
+  async function toggleAppModal() {
+    showAppModal = !showAppModal;
+    if(showAppModal){
+      getAllGroups();
+    }
+  }
+
   let newApp = {      
     App_Acronym: '',
     App_Description: '',
@@ -20,44 +51,6 @@
     App_permit_Doing: '',
     App_permit_Done: '',
   }
-  let currentUser = {
-    username: '',
-    email: '',
-    password: '',
-    groups: [],
-    accountStatus: 'active'
-  };
-
-
-  async function toggleAppModal() {
-    showAppModal = !showAppModal;
-    try {
-		const response = await api.get('/api/groups', { withCredentials: true });
-		groups = response.data;
-	  } catch (error) {
-		  if (error.status === 401) {
-			  goto('/login');
-		  }
-		  toast.error(error.response.data.error);
-	  }
-  }
-
-  async function handleCancel(){
-    newApp = {      
-    App_Acronym: '',
-    App_Description: '',
-    App_Rnumber: '',
-    App_startDate: '',
-    App_endDate: '',
-    App_permit_Create: '',
-    App_permit_Open: '', 
-    App_permit_toDoList: '',
-    App_permit_Doing: '',
-    App_permit_Done: '',
-  }
-  await toggleAppModal();
-  }
-
   async function handleCreateApp() {
     try {
       const response = await api.post('/api/applications', {application: newApp}, { withCredentials: true });
@@ -83,12 +76,28 @@
     }
   }
 
-  async function getApplications() {
-    try {
-      console.log(currentUser.username);
-      const response = await api.post('/api/applications/by-permit', {username: currentUser.username},{ withCredentials: true });
-      return response.data;
-    } catch (error) {
+  function handleCancel(){
+    newApp = {      
+      App_Acronym: '',
+      App_Description: '',
+      App_Rnumber: '',
+      App_startDate: '',
+      App_endDate: '',
+      App_permit_Create: '',
+      App_permit_Open: '', 
+      App_permit_toDoList: '',
+      App_permit_Doing: '',
+      App_permit_Done: '',
+    }
+  showAppModal = false;
+  }
+
+  let isPL = false;
+  async function isInGroup(groupName) {
+    try{
+      const response = await api.post('/api/user/is-in-group', {group: groupName}, { withCredentials: true });
+      return response.data.isInGroup;
+    } catch(error) {
       if (error.status === 401) {
         goto('/login');
       }
@@ -96,19 +105,9 @@
     }
   }
 
-  async function getUser(){
-  // get user data
-    try {
-      const response = await api.get('/api/user', { withCredentials: true });
-      return response.data.user;
-    } catch (error) {
-      toast.error(error.response.data.error);
-    }
-  }
-
   onMount(async () => {
-    currentUser = await getUser();
     applications = await getApplications();
+    isPL = await isInGroup('pl');
   })
 
 </script>
@@ -186,13 +185,13 @@
 <div>
   <div class="top-bar">
     <h1>Applications</h1>
-    {#if currentUser.groups.includes("pl")}
+    {#if isPL}
     <button class="add-groups" on:click={toggleAppModal}>+ APPLICATION</button>
     {/if}
   </div>
   <div class="applications-container">
     {#each applications as app}
-    <ApplicationCard bind:appDetails={app} currentUser={currentUser}/>
+    <ApplicationCard bind:appDetails={app}/>
     {/each}
   </div>
 </div>

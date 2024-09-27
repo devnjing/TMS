@@ -50,11 +50,6 @@
       toast.error(error.response.data.error);
     }
   }
-  
-  onMount(async () => {
-    isAdmin = await checkIfAdmin();
-    currentUser = await getUser();
-  })
 
   async function toggleProfileModal() {
     showProfileModal = !showProfileModal;
@@ -75,6 +70,11 @@
       toast.error(error.response.data.error);
     }
   }
+
+  onMount(async () => {
+    isAdmin = await checkIfAdmin();
+    currentUser = await getUser();
+  })
 </script>
 {#if currentUser}
 <Modal bind:showModal={showProfileModal}>

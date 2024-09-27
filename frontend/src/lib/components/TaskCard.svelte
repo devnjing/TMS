@@ -4,38 +4,34 @@
   import {api} from "$api";
   import {toast} from "svelte-sonner";
 
-  export let taskDetails = [];
-  export let currentUser;
-  let newNote;
-  let plans = [];
-  let planIsChanged = false;
-  let newPlan = taskDetails.Task_plan;
 
+  export let taskDetails = [];
+  let newNote;
+
+  async function getTaskDetails() {
+    try {
+      const response = await api.post("/api/task/details", {taskId:taskDetails.Task_id} ,{ withCredentials: true });
+      console.log(response.data);
+      return response.data;
+    } catch (error) {
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
+  }
+
+  // for button disable
+  let planIsChanged = false;
   function planUpdate () {
-    if (newPlan !== taskDetails.Task_plan)
+    if (currentPlan !== taskDetails.Task_plan)
       planIsChanged = true;
     else {
       planIsChanged = false;
     }
   }
 
-  const tempDetails = {
-    taskName: taskDetails.Task_name,
-    taskDescription: taskDetails.Task_description,
-    taskPlan: taskDetails.Task_plan,
-    taskNotes: taskDetails.Task_notes,
-
-  };
   let taskColor = "white";
-  let showTaskDetailsModal = false;
-  let hasPermits = {
-    hasCreatePermit: false,
-    hasOpenPermit: false,
-    hasToDoListPermit: false,
-    hasDoingPermit: false,
-    hasDonePermit: false
-  }
-
   async function updateColor(){
     try {
       const response = await api.post('/api/plan/color', {Plan_MVP_name: taskDetails.Task_plan}, { withCredentials: true });
@@ -48,30 +44,35 @@
     }
   }
 
+  let currentUsername;
+  async function getUsername() {
+    try {
+      const response = await api.get('/api/user/username', { withCredentials: true });
+      return response.data.username;
+    } catch (error) {
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
+  }
+
+  let showTaskDetailsModal = false;
   async function toggleTaskDetailsModal() {
     showTaskDetailsModal = !showTaskDetailsModal;
     await checkPermits();
+    taskDetails = await getTaskDetails();
   }
 
-  async function handleUpdateTask(newState = taskDetails.Task_state) {
+  async function handleUpdateTask(newState) {
     taskDetails.Task_state = newState;
-    if (taskDetails.Task_notes === "" || taskDetails.Task_notes === null) {
-      taskDetails.Task_notes = newNote;
-    } else if (!(newNote === "" || newNote === null || newNote === undefined)) {
-      taskDetails.Task_notes = `${taskDetails.Task_notes}\n\n${newNote}`;
-    }
-    taskDetails.Task_plan = newPlan;
-    console.log("before try");
+    taskDetails.newNote = newNote;
+    taskDetails.Task_plan = currentPlan;
     try {
-      let response;
-      if(taskDetails.Task_state === "Done") {
-        console.log("done");
-        response = await api.post('/api/task/update-with-email', {task: taskDetails}, { withCredentials: true });
-      } else {
-        console.log("rest");
-        response = await api.post('/api/task/update', {task: taskDetails}, { withCredentials: true });
-      }
+      let response = await api.post('/api/task/update', {task: taskDetails}, { withCredentials: true });
       toast.success(response.data.success);
+      taskDetails = await getTaskDetails();
+
     } catch(error) {
       if (error.status === 401) {
         goto('/login');
@@ -81,26 +82,30 @@
   }
 
   async function handleSaveTask(){
-    if(taskDetails.Task_notes === "" || taskDetails.Task_notes === null){
-      taskDetails.Task_notes = newNote;
-    } else if (!(newNote === "")) {
-      taskDetails.Task_notes = `${taskDetails.Task_notes}\n\n${newNote}`;
-    }
-    taskDetails.Task_owner = currentUser.username;
-    taskDetails.Task_plan = newPlan;
+    taskDetails.newNote = newNote;
+    taskDetails.Task_owner = currentUsername;
+    taskDetails.Task_plan = currentPlan;
     try{
       const response = await api.post('/api/task/update', {task: taskDetails}, { withCredentials: true });
       toast.success(response.data.success);
+      newNote = "";
+      taskDetails = await getTaskDetails();
     } catch (error) {
       if (error.status === 401) {
         goto('/login');
       }
       toast.error(error.response.data.error);
     }
-    newNote = "";
-    await toggleTaskDetailsModal();
+
   }
 
+  let hasPermits = {
+    hasCreatePermit: false,
+    hasOpenPermit: false,
+    hasToDoListPermit: false,
+    hasDoingPermit: false,
+    hasDonePermit: false
+  }
   async function checkPermits() {
     try {
       const response = await api.post('/api/task/permits', {App_Acronym: taskDetails.Task_app_Acronym}, { withCredentials: true });
@@ -114,15 +119,24 @@
     }
   }
 
+  const tempDetails = {
+    taskName: taskDetails.Task_name,
+    taskDescription: taskDetails.Task_description,
+    taskPlan: taskDetails.Task_plan,
+    taskNotes: taskDetails.Task_notes,
+
+  };
   async function handleCancel() {
     taskDetails.Task_notes = tempDetails.taskNotes;
     taskDetails.Task_name = tempDetails.taskName;
     taskDetails.Task_description = tempDetails.taskDescription;
     taskDetails.Task_plan = tempDetails.taskPlan;
-    newPlan = tempDetails.taskPlan;
-    await toggleTaskDetailsModal(); 
+    currentPlan = tempDetails.taskPlan;
+    showTaskDetailsModal = false;
   }
 
+  let plans = [];
+  let currentPlan = taskDetails.Task_plan;
   async function getPlans() {
     try{
       const response = await api.post('/api/plans', {App_Acronym: taskDetails.Task_app_Acronym}, {withCredentials: true})
@@ -138,6 +152,7 @@
   onMount(async () => {
     updateColor();
     plans = await getPlans();
+    currentUsername = await getUsername();
   })
 </script>
 
@@ -149,23 +164,10 @@
       <label for="task-id">Task ID:</label>
       <p>{taskDetails.Task_id}</p>
     </div>
-    {#if taskDetails.Task_state === "Open" && hasPermits.hasOpenPermit}
-    <div class="form-group">
-      <label for="task-name">Task Name:</label>
-      <input type="text" name="task-name" placeholder="Task Name" bind:value={taskDetails.Task_name}/>
-    </div>
-      {:else}
       <div class="readonly-group">
         <label for="task-name">Task Name:</label>
         <p>{taskDetails.Task_name}</p>
       </div>
-      {/if}
-      {#if taskDetails.Task_state === "Open" && hasPermits.hasOpenPermit}
-    <div class="form-group">
-      <label for="task-description">Task Description:</label>
-      <textarea name="task-description" bind:value={taskDetails.Task_description}></textarea>
-    </div>
-      {:else}
       <div class="readonly-group">
         <label for="task-description">Task Description:</label>
         {#if taskDetails.Task_description === null}
@@ -174,11 +176,10 @@
           <pre>{taskDetails.Task_description}</pre>
         {/if}
       </div>
-      {/if}
       {#if (taskDetails.Task_state === "Open" || taskDetails.Task_state === "Done") && hasPermits.hasOpenPermit}
       <div class="form-group">
         <label for="plan-name">Plan Name:</label>
-        <select name="plan-name" bind:value={newPlan} on:change={planUpdate}>
+        <select name="plan-name" bind:value={currentPlan} on:change={planUpdate}>
           {#each plans as plan}
             <option>{plan}</option>
           {/each}
@@ -209,7 +210,7 @@
     </div>
   </div>
   <div class="task-notes">
-    {#if taskDetails.Task_notes === null}
+    {#if taskDetails.Task_notes === null || taskDetails.Task_notes === ""}
       <pre class="notes">No Notes Added</pre>
     {:else}
       <pre class="notes">{taskDetails.Task_notes}</pre>

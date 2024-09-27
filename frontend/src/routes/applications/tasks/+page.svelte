@@ -1,35 +1,74 @@
 <script>
   import {Modal, TaskCard} from "$components";
-  import {onDestroy, onMount} from "svelte";
+  import {onMount} from "svelte";
   import {toast} from "svelte-sonner";
   import {api} from '$api';
   import {goto} from "$app/navigation";
   import {selectedApp} from "../../../stores/appData";
   
   let App_Acronym;
-
   $: selectedApp.subscribe(value => {
       App_Acronym = value;
     });
 
-  let showPlanModal = false;
-  let showAddTaskModal = false;
   let tasks = [];
-  let appDetails = {};
-  let plans = [];
-  let currentUser = {
-    username: '',
-    email: '',
-    password: '',
-    groups: [],
-    accountStatus: 'active'
-  };
-  let currentUsername;
   let newNote;
 
 
-  $: currentTaskId = appDetails.App_Acronym + "_" + appDetails.App_Rnumber;
+  let showPlanModal = false;
+  function togglePlanModal() {
+    showPlanModal = !showPlanModal;
+  }
 
+
+
+  let plans = [];
+  async function getPlans() {
+    try{
+      const response = await api.post('/api/plans', {App_Acronym}, {withCredentials: true})
+      return response.data.planNames;
+    } catch(error) {
+      if(error.status === 401){
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
+  }
+
+  let currentUsername;
+  async function getUsername() {
+    try {
+      const response = await api.get('/api/user/username', { withCredentials: true });
+      return response.data.username;
+    } catch (error) {
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
+  }
+
+  let showAddTaskModal = false;
+  let createDate;
+  let newTask = {
+      Task_id: "",
+      Task_plan: "",
+      Task_app_Acronym: "",
+      Task_name: "",
+      Task_description: "",
+      Task_notes: "",
+      Task_state: "Open",
+      Task_creator: "Current User",
+      Task_owner: "Current User",
+      Task_createDate: "",
+    }
+
+  async function toggleAddTaskModal() {
+    showAddTaskModal = !showAddTaskModal;
+    plans = await getPlans();
+    createDate = currentDate();
+    currentUsername = await getUsername();
+  }
 
   let newPlan = {
     Plan_MVP_name: "",
@@ -38,49 +77,6 @@
     Plan_endDate: "",
     Plan_color: "",
   }
-
-  let createDate;
-  let newTask = {
-      Task_id: "",
-      Task_plan: "",
-      Task_app_Acronym: "",
-      Task_name: "",
-      task_description: "",
-      Task_notes: "",
-      Task_state: "Open",
-      Task_creator: "Current User",
-      Task_owner: "Current User",
-      Task_createDate: "",
-    }
-  
-    let hasPermits = {
-    hasCreatePermit: false,
-    hasOpenPermit: false,
-    hasToDoListPermit: false,
-    hasDoingPermit: false,
-    hasDonePermit: false
-  }
-
-
-  function togglePlanModal() {
-    showPlanModal = !showPlanModal;
-  }
-
-  function currentDate () {
-    const today = new Date();
-    const date = today.getDate() + "/" + (today.getMonth()+1).toString().padStart(2, '0') + "/" + today.getFullYear();
-    return date;
-  }
-
-  async function toggleAddTaskModal() {
-    plans = await getPlans();
-    appDetails = await getApplication();
-    createDate = currentDate();
-    currentUser = await getUser();
-    currentUsername = currentUser.username;
-    showAddTaskModal = !showAddTaskModal;
-  }
-
   async function handleCreatePlan() {
     try {
       const response = await api.post('/api/plan', {plan: newPlan}, { withCredentials: true });
@@ -101,13 +97,12 @@
   }
 
   async function handleAddTask() {
-    newTask.Task_id = currentTaskId;
     newTask.Task_app_Acronym = App_Acronym;
     newTask.Task_state = "Open";
     newTask.Task_creator = currentUsername;
     newTask.Task_owner = currentUsername;
     newTask.Task_createDate = createDate;
-    newTask.Task_notes = newNote;
+    newTask.newNote= newNote;
     try {
       const response = await api.post('/api/task', {task: newTask}, { withCredentials: true });
       toast.success(response.data.success);
@@ -125,7 +120,7 @@
       }
       newNote = "";
       tasks = await getTasks();
-      showAddTaskModal = !showAddTaskModal;
+      showAddTaskModal = false;
     } catch (error) {
       if (error.status === 401) {
         goto('/login');
@@ -134,42 +129,21 @@
     }
   }
 
-  async function getApplication() {
-    try {
-      const response = await api.post('/api/application', {App_Acronym}, { withCredentials: true });
-      return response.data;
-    } catch (error) {
-      console.log(error);
-      if (error.status === 401) {
-        goto('/login');
-      }
-      toast.error(error.response.data.error);
-    }
-  }
-
-  async function getPlans() {
+  let isPM = false;
+  async function isInGroup(groupName) {
     try{
-      const response = await api.post('/api/plans', {App_Acronym}, {withCredentials: true})
-      return response.data.planNames;
+      const response = await api.post('/api/user/is-in-group', {group: groupName}, { withCredentials: true });
+      return response.data.isInGroup;
     } catch(error) {
-      if(error.status === 401){
+      if (error.status === 401) {
         goto('/login');
       }
-      toast.error(error.response.data.error);
-    }
-  }
-
-  async function getUser(){
-  // get user data
-    try {
-      const response = await api.get('/api/user', { withCredentials: true });
-      return response.data.user;
-    } catch (error) {
       toast.error(error.response.data.error);
     }
   }
 
   async function getTasks() {
+    console.log("getting tasks");
     try {
       const response = await api.post('/api/tasks', {App_Acronym}, { withCredentials: true });
       return response.data;
@@ -181,10 +155,17 @@
     }
   }
 
+  let hasPermits = {
+    hasCreatePermit: false,
+    hasOpenPermit: false,
+    hasToDoListPermit: false,
+    hasDoingPermit: false,
+    hasDonePermit: false
+  }
   async function checkPermits() {
     try {
       const response = await api.post('/api/task/permits', {App_Acronym}, { withCredentials: true });
-      hasPermits = response.data;
+      return response.data;
     } catch(error) {
       console.log(error);
       if (error.status === 401) {
@@ -207,17 +188,22 @@
       Task_owner: "Current User",
       Task_createDate: "",
     }
-    await toggleAddTaskModal();
+    showAddTaskModal = false;
+  }
+
+  function currentDate () {
+    const today = new Date();
+    const date = today.getDate() + "/" + (today.getMonth()+1).toString().padStart(2, '0') + "/" + today.getFullYear();
+    return date;
   }
 
   onMount(async () => {
     if(App_Acronym === null){
       goto('/applications');
     } else {
-      appDetails = await getApplication();
       tasks = await getTasks();
-      await checkPermits();
-      currentUser = await getUser();
+      hasPermits = await checkPermits();
+      isPM = await isInGroup('pm');
     }
   })
 
@@ -228,7 +214,7 @@
     <h1>Create Plan</h1>
     <div class="readonly-group">
       <label for="app-acronym">App Acronym:</label>
-      <p>{appDetails.App_Acronym}</p>
+      <p>{App_Acronym}</p>
     </div>
     <div class="form-group">
       <label for="plan-name">Plan MVP Name:</label>
@@ -259,7 +245,7 @@
     <div class="task-details">
     <div class="readonly-group">
       <label for="task-id">Task ID:</label>
-      <p>{currentTaskId}</p>
+      <p>{App_Acronym}_R</p>
     </div>
     <div class="form-group">
       <label for="task-name">Task Name:</label>
@@ -313,7 +299,7 @@
 <div>
   <div class="top-bar">
     <h1>Task Management Board: {App_Acronym}</h1>
-    {#if currentUser.groups.includes("pm")}
+    {#if isPM}
     <button class="add-groups" on:click={togglePlanModal}>+ PLAN</button>
     {/if}
   </div>
@@ -327,7 +313,7 @@
       </div>
       {#each tasks as task}
       {#if task.Task_state === "Open"}
-        <TaskCard bind:taskDetails={task} currentUser={currentUser}/>
+        <TaskCard bind:taskDetails={task}/>
       {/if}
       {/each}
     </div>
@@ -337,7 +323,7 @@
       </div>
       {#each tasks as task}
       {#if task.Task_state === "Todo"}
-      <TaskCard bind:taskDetails={task} currentUser={currentUser}/>
+      <TaskCard bind:taskDetails={task}/>
       {/if}
       {/each}
     </div>
@@ -347,7 +333,7 @@
       </div>
       {#each tasks as task}
       {#if task.Task_state === "Doing"}
-      <TaskCard bind:taskDetails={task} currentUser={currentUser}/>
+      <TaskCard bind:taskDetails={task}/>
       {/if}
       {/each}
     </div>
@@ -357,7 +343,7 @@
       </div>
       {#each tasks as task}
       {#if task.Task_state === "Done"}
-      <TaskCard bind:taskDetails={task} currentUser={currentUser}/>
+      <TaskCard bind:taskDetails={task}/>
       {/if}
       {/each}
     </div>
@@ -367,7 +353,7 @@
       </div>
       {#each tasks as task}
       {#if task.Task_state === "Closed"}
-      <TaskCard bind:taskDetails={task} currentUser={currentUser}/>
+      <TaskCard bind:taskDetails={task}/>
       {/if}
       {/each}
     </div>

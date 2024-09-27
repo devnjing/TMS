@@ -1,5 +1,5 @@
 const express = require("express");
-const { getStatus, logoutUser, updateProfile, addUser, isAdmin, loginUser, updateUser, getAllGroups, addGroup, getUsersWithGroups, getUser } = require("../controllers/accountsController");
+const { getUsername, isInGroup, getStatus, logoutUser, updateProfile, addUser, isAdmin, loginUser, updateUser, getAllGroups, addGroup, getUsersWithGroups, getUser } = require("../controllers/accountsController");
 const { isAuthorized, allowedGroups } = require("../middlewares/auth");
 
 const router = express.Router();
@@ -11,9 +11,11 @@ router.route("/logout").get(logoutUser);
 // protected routes
 // single user
 router.route("/user/is-admin").get(isAuthorized(), isAdmin);
+router.route("/user/is-in-group").post(isAuthorized(), isInGroup);
 router.route("/user").get(isAuthorized(), getUser);
 router.route("/user").post(isAuthorized(), updateProfile);
 router.route("/user/status").get(isAuthorized(), getStatus);
+router.route("/user/username").get(isAuthorized(), getUsername);
 
 // user management
 router.route("/users").get(isAuthorized(), allowedGroups("admin"), getUsersWithGroups);

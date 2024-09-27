@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { Toaster } from 'svelte-sonner';
 
 	export let showModal
 
@@ -16,8 +17,10 @@
 	on:close={() => (showModal = false)}
 	on:click|self={() => dialog.close()}
 >
+
 	<!-- svelte-ignore a11y-no-static-element-interactions -->
 	<div on:click|stopPropagation>
+		<Toaster style="z-index: 9999 !important;" position="bottom-right" richColors/>
 		<slot name="header" />
 		<!-- <hr /> -->
 		<slot />

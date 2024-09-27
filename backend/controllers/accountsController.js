@@ -310,6 +310,29 @@ exports.addGroup = async (req, res) => {
   }
 };
 
+exports.getUsername = async (req, res) => {
+  try {
+    const username = await getUNameFromToken(req.cookies.token);
+    res.json({ username });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to get username" });
+  }
+};
+
+exports.isInGroup = async (req, res) => {
+  const { group } = req.body;
+  const username = await getUNameFromToken(req.cookies.token);
+  const query = `SELECT * FROM usergroup WHERE username = ? AND user_group = ?`;
+  const params = [username, group];
+  try {
+    const results = await executeQuery(query, params);
+    res.json({ isInGroup: results.length > 0 });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Failed to check if user is in group" });
+  }
+};
+
 /*------------------------------------------------------------------------------------*/
 // query to get user by username
 async function getUserByUname(username) {
@@ -350,5 +373,16 @@ async function checkGroup(username, groupName) {
   } catch (error) {
     console.error(error);
     return false;
+  }
+}
+
+async function getUNameFromToken(token) {
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      return decoded.username;
+    } catch (error) {
+      console.log(error);
+    }
   }
 }

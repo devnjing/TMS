@@ -7,39 +7,40 @@ import {api} from "$api";
 import {toast} from "svelte-sonner";
 import {selectedApp} from "../../stores/appData";
 
-export let appDetails = [];
-let showAppModal = false;
-let groups = [];
+
 let startDateFormatted, endDateFormatted;
-export let currentUser;
 
 const handleEnterApp = () => {
   selectedApp.set(appDetails.App_Acronym);
   goto('/applications/tasks');
 }
 
-async function toggleAppModal() {
-    showAppModal = !showAppModal;
-    try {
+let groups = [];
+async function getAllGroups() {
+  try {
 		const response = await api.get('/api/groups', { withCredentials: true });
-		groups = response.data;
-	  } catch (error) {
+		return response.data;
+	} catch (error) {
 		  if (error.status === 401) {
 			  goto('/login');
 		  }
 		  toast.error(error.response.data.error);
-	  }
+	}
+}
+
+let showAppModal = false;
+async function toggleAppModal() {
+    showAppModal = !showAppModal;
+    if(showAppModal){
+      groups = await getAllGroups();
+    }
   }
 
-  async function handleEditApp() {
-    try {
-      const response = await api.post('/api/application/update', {application: appDetails}, { withCredentials: true });
-      toast.success(response.data.success);
-      showAppModal = false;
-      await getAppDetails();
-      startDateFormatted = formatDate(appDetails.App_startDate);
-      endDateFormatted = formatDate(appDetails.App_endDate);
-
+  let isPL = false;
+  async function isInGroup(groupName) {
+    try{
+      const response = await api.post('/api/user/is-in-group', {group: groupName}, { withCredentials: true });
+      return response.data.isInGroup;
     } catch(error) {
       if (error.status === 401) {
         goto('/login');
@@ -48,10 +49,11 @@ async function toggleAppModal() {
     }
   }
 
+  export let appDetails = [];
   async function getAppDetails(){
     try {
       const response = await api.post('/api/application', {App_Acronym: appDetails.App_Acronym}, { withCredentials: true });
-      appDetails = response.data;
+      return response.data;
     } catch(error){
       if(error.status === 401){
         goto('/login');
@@ -60,19 +62,37 @@ async function toggleAppModal() {
     }
   }
 
-  async function handleCancel(){
-    await toggleAppModal();
-     await getAppDetails();
+  async function handleUpdateApp() {
+    try {
+      const response = await api.post('/api/application/update', {application: appDetails}, { withCredentials: true });
+      toast.success(response.data.success);
+      // update on screen changes
+      showAppModal = false;
+      startDateFormatted = formatDate(appDetails.App_startDate);
+      endDateFormatted = formatDate(appDetails.App_endDate);
+      appDetails = await getAppDetails();
+    } catch(error) {
+      if (error.status === 401) {
+        goto('/login');
+      }
+      toast.error(error.response.data.error);
+    }
   }
 
-  function formatDate(dateString) {
+  async function handleCancel(){
+    await toggleAppModal();
+    appDetails = await getAppDetails();
+  }
+
+  function formatDateDDMMYYYY(dateString) {
     const [year, month, day] = dateString.split('-');
     return `${day}/${month}/${year}`;
   }
 
-  onMount(() => {
-    startDateFormatted = formatDate(appDetails.App_startDate);
-    endDateFormatted = formatDate(appDetails.App_endDate);
+  onMount(async () => {
+    startDateFormatted = formatDateDDMMYYYY(appDetails.App_startDate);
+    endDateFormatted = formatDateDDMMYYYY(appDetails.App_endDate);
+    isPL = await isInGroup('pl');
   })
 
 </script>
@@ -140,7 +160,7 @@ async function toggleAppModal() {
       </select>
     </div>
     <div class="modal-buttons">
-      <button on:click={handleEditApp}>Save</button>
+      <button on:click={handleUpdateApp}>Save</button>
       <button on:click={handleCancel}>Cancel</button>
     </div>
   </div>
@@ -165,7 +185,7 @@ async function toggleAppModal() {
   <h3>End Date:</h3>
   <p>{endDateFormatted}</p>
 </div>
-{#if currentUser.groups.includes("pl")}
+{#if isPL}
 <div class='edit-icon'>
   <button class="edit-button" on:click|stopPropagation={toggleAppModal}><FaEdit/></button>
 </div>
