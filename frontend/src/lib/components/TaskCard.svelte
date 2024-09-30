@@ -2,7 +2,8 @@
   import { onMount } from "svelte";
   import {Modal} from "$components";
   import {api} from "$api";
-  import {toast} from "svelte-sonner";
+  import {toast} from "svelte-sonner";  
+  import {goto} from "$app/navigation";
 
 
   export let taskDetails = [];
@@ -33,6 +34,9 @@
 
   let taskColor = "white";
   async function updateColor(){
+    if(taskDetails.Task_plan == null){
+      return;
+    }
     try {
       const response = await api.post('/api/plan/color', {Plan_MVP_name: taskDetails.Task_plan}, { withCredentials: true });
       taskColor = response.data;
@@ -62,12 +66,18 @@
     showTaskDetailsModal = !showTaskDetailsModal;
     await checkPermits();
     taskDetails = await getTaskDetails();
+    plans = await getPlans();
+    console.log(plans);
   }
 
   async function handleUpdateTask(newState) {
     taskDetails.Task_state = newState;
     taskDetails.newNote = newNote;
     taskDetails.Task_plan = currentPlan;
+    taskDetails.Task_owner = currentUsername;
+    if(taskDetails.Task_plan === "") {
+      taskDetails.Task_plan = null
+    }
     try {
       let response = await api.post('/api/task/update', {task: taskDetails}, { withCredentials: true });
       toast.success(response.data.success);
@@ -83,7 +93,6 @@
 
   async function handleSaveTask(){
     taskDetails.newNote = newNote;
-    taskDetails.Task_owner = currentUsername;
     taskDetails.Task_plan = currentPlan;
     try{
       const response = await api.post('/api/task/update', {task: taskDetails}, { withCredentials: true });
@@ -128,10 +137,10 @@
   };
   async function handleCancel() {
     taskDetails.Task_notes = tempDetails.taskNotes;
-    taskDetails.Task_name = tempDetails.taskName;
-    taskDetails.Task_description = tempDetails.taskDescription;
     taskDetails.Task_plan = tempDetails.taskPlan;
     currentPlan = tempDetails.taskPlan;
+    newNote = "";
+    planIsChanged = false;
     showTaskDetailsModal = false;
   }
 
@@ -176,10 +185,11 @@
           <pre>{taskDetails.Task_description}</pre>
         {/if}
       </div>
-      {#if (taskDetails.Task_state === "Open" || taskDetails.Task_state === "Done") && hasPermits.hasOpenPermit}
+      {#if (hasPermits.hasDonePermit && taskDetails.Task_state === "Done") || (hasPermits.hasOpenPermit && taskDetails.Task_state === "Open")}
       <div class="form-group">
         <label for="plan-name">Plan Name:</label>
         <select name="plan-name" bind:value={currentPlan} on:change={planUpdate}>
+          <option></option>
           {#each plans as plan}
             <option>{plan}</option>
           {/each}
@@ -188,7 +198,11 @@
       {:else}
       <div class="readonly-group">
         <label for="plan-name">Plan Name:</label>
+        {#if taskDetails.Task_plan !== null}
         <p>{taskDetails.Task_plan}</p>
+        {:else}
+        <p>No Plan</p>
+        {/if}
       </div>
       {/if}
 
@@ -215,7 +229,7 @@
     {:else}
       <pre class="notes">{taskDetails.Task_notes}</pre>
     {/if}
-    {#if taskDetails.Task_state !== "Closed"}
+    {#if (taskDetails.Task_state === "Open" && hasPermits.hasOpenPermit) || (taskDetails.Task_state === "Todo" && hasPermits.hasToDoListPermit) || (taskDetails.Task_state === "Doing" && hasPermits.hasDoingPermit) || (taskDetails.Task_state === "Done" && hasPermits.hasDonePermit)}
     <div class="add-notes">
       <textarea class="text-box" bind:value={newNote} placeholder="Comments" />
     </div>
@@ -235,8 +249,8 @@
     <button on:click={() => handleUpdateTask("Closed")} class="promote" disabled={planIsChanged}>Approve Task</button>
     <button on:click={() => handleUpdateTask("Doing")} class="demote">Reject Task</button>
   {/if}
-  {#if taskDetails.Task_state !== "Closed"}
-    <button on:click={handleSaveTask}>Save</button>
+  {#if (taskDetails.Task_state === "Open" && hasPermits.hasOpenPermit) || (taskDetails.Task_state === "Todo" && hasPermits.hasToDoListPermit) || (taskDetails.Task_state === "Doing" && hasPermits.hasDoingPermit) || (taskDetails.Task_state === "Done" && hasPermits.hasDonePermit)}
+  <button on:click={handleSaveTask} disabled={planIsChanged}>Save</button>
   {/if}
   <button on:click={handleCancel}>Cancel</button>
 
@@ -291,23 +305,6 @@
       background-color: rgba(0,0,0,0.5);
   }
 
-  input {
-    padding: 5px 0px 5px 5px;
-    margin: 5px 0;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1)
-  }
-
-  input:focus {
-    border-color: #aaa;
-    box-shadow: 0 0 1px rgba(0,0,0,0.3);
-  }
-
-  input:hover {
-    border-color: #aaa;
-  }
-
   textarea {
     resize: none;
   }
@@ -330,7 +327,7 @@
     font-weight: bold;
   }
 
-  .form-group input, textarea, select {
+  .form-group select {
     background-color: #ccc;
     width: 200px;
     padding: 10px;
@@ -373,6 +370,7 @@
   
   .text-box {
     width: 100%;
+    padding: 10px;
   }
 
   .promote {
@@ -406,4 +404,11 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.readonly-group pre {
+  word-wrap: break-word;
+  word-break: break-all;
+  white-space: normal;
+}
+
 </style>

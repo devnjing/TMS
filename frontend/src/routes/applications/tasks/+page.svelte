@@ -14,13 +14,10 @@
   let tasks = [];
   let newNote;
 
-
   let showPlanModal = false;
   function togglePlanModal() {
     showPlanModal = !showPlanModal;
   }
-
-
 
   let plans = [];
   async function getPlans() {
@@ -52,7 +49,7 @@
   let createDate;
   let newTask = {
       Task_id: "",
-      Task_plan: "",
+      Task_plan: null,
       Task_app_Acronym: "",
       Task_name: "",
       Task_description: "",
@@ -75,10 +72,12 @@
     Plan_app_Acronym: App_Acronym,
     Plan_startDate: "",
     Plan_endDate: "",
-    Plan_color: "",
+    Plan_color: "#000000",
   }
   async function handleCreatePlan() {
     try {
+      newPlan.Plan_app_Acronym = App_Acronym;
+      console.log(newPlan);
       const response = await api.post('/api/plan', {plan: newPlan}, { withCredentials: true });
       toast.success(response.data.success);
       newPlan = {
@@ -86,7 +85,7 @@
         Plan_app_Acronym: App_Acronym,
         Plan_startDate: "",
         Plan_endDate: "",
-        Plan_color: "",
+        Plan_color: "#000000",
       }
     } catch (error) {
       if (error.status === 401) {
@@ -102,13 +101,17 @@
     newTask.Task_creator = currentUsername;
     newTask.Task_owner = currentUsername;
     newTask.Task_createDate = createDate;
-    newTask.newNote= newNote;
+    newTask.newNote = newNote;
+    if(newTask.Task_plan === "") {
+      newTask.Task_plan = null
+    }
+
     try {
       const response = await api.post('/api/task', {task: newTask}, { withCredentials: true });
       toast.success(response.data.success);
       newTask = {
         Task_id: "",
-        Task_plan: "",
+        Task_plan: null,
         Task_app_Acronym: "",
         Task_name: "",
         task_description: "",
@@ -188,6 +191,7 @@
       Task_owner: "Current User",
       Task_createDate: "",
     }
+    newNote = "";
     showAddTaskModal = false;
   }
 
@@ -245,7 +249,7 @@
     <div class="task-details">
     <div class="readonly-group">
       <label for="task-id">Task ID:</label>
-      <p>{App_Acronym}_R</p>
+      <p>System-Generated (AppAcronym_Rnumber)</p>
     </div>
     <div class="form-group">
       <label for="task-name">Task Name:</label>
@@ -258,6 +262,7 @@
     <div class="form-group">
       <label for="plan-name">Plan Name:</label>
       <select name="plan-name" bind:value={newTask.Task_plan}>
+        <option></option>
         {#each plans as plan}
           <option>{plan}</option>
         {/each}

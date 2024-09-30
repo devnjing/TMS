@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { isAuthorized, allowedGroups } = require("../middlewares/auth");
-const { getTaskByTaskId, getNewTaskId, updateTaskAndEmail, addTask, createApplication, getApplications, addPlan, getPlansByAppAcronym, getApplicationByAppAcronym, getTasksByAppAcronym, getPlanColor, updateTask, updateApplication, checkPermits } = require("../controllers/taskManagementController");
+const { getTaskByTaskId, addTask, createApplication, getApplications, addPlan, getPlansByAppAcronym, getApplicationByAppAcronym, getTasksByAppAcronym, getPlanColor, updateTask, updateApplication, checkPermits } = require("../controllers/taskManagementController");
 
 //protected routes
 //app management
@@ -19,7 +19,6 @@ router.route("/plan/color").post(isAuthorized(), getPlanColor);
 router.route("/task").post(isAuthorized(), addTask);
 router.route("/tasks").post(isAuthorized(), getTasksByAppAcronym);
 router.route("/task/update").post(isAuthorized(), updateTask);
-router.route("/task/task-id").post(isAuthorized(), getNewTaskId);
 router.route("/task/permits").post(isAuthorized(), checkPermits);
 router.route("/task/details").post(isAuthorized(), getTaskByTaskId);
 

@@ -33,7 +33,7 @@ exports.createApplication = async (req, res) => {
     const { application } = req.body;
     // check mandatory fields
     if (!application.App_Acronym || !application.App_Rnumber || !application.App_startDate || !application.App_endDate) {
-      return res.status(500).json({ error: "Missing mandatory fields" });
+      return res.status(500).json({ error: "Missing mandatory fields: App Acronym, R Number, Start Date, End Date" });
     }
     // check if App_Acronym already exists
     let query = "SELECT * FROM application WHERE App_Acronym = ?";
@@ -92,6 +92,17 @@ exports.getApplicationByAppAcronym = async (req, res) => {
 
 exports.addPlan = async (req, res) => {
   const { plan } = req.body;
+
+  // check mandatory fields
+  if (!plan.Plan_MVP_name || !plan.Plan_startDate || !plan.Plan_endDate || !plan.Plan_color) {
+    return res.status(500).json({ error: "Missing mandatory fields: Plan MVP name, Start Date, End Date, Color" });
+  }
+
+  // check plan length
+  if (plan.Plan_MVP_name.length < 0 || plan.Plan_MVP_name.length > 100) {
+    return res.status(500).json({ error: "Invalid plan name" });
+  }
+
   const epochStartDate = Math.floor(new Date(plan.Plan_startDate).getTime() / 1000);
   const epochEndDate = Math.floor(new Date(plan.Plan_endDate).getTime() / 1000);
   const query = "INSERT INTO plan (Plan_MVP_name, Plan_app_Acronym, Plan_startDate, Plan_endDate, Plan_color) VALUES (?, ?, ?, ?, ?)";
@@ -122,20 +133,41 @@ exports.getPlansByAppAcronym = async (req, res) => {
 
 exports.addTask = async (req, res) => {
   try {
+    await executeQuery("START TRANSACTION");
     const { task } = req.body;
+    const username = await getUNameFromToken(req.cookies.token);
 
-    if (task.newNote) {
-      const username = await getUNameFromToken(req.cookies.token);
-      const datetimestamp = createDatetimeStamp();
-      // stamp new note
-      const stamp = `Commented by: ${username}\nTask state: ${task.Task_state}\nDatetime: ${datetimestamp}`;
-      task.Task_notes = `${stamp}\n${task.newNote}`;
+    //check create permit
+    const query = "SELECT App_permit_Create FROM application WHERE App_Acronym = ? LOCK IN SHARE MODE";
+    const params = [task.Task_app_Acronym];
+    const createPermit = await executeQuery(query, params);
+    const hasCreatePermit = await checkGroup(username, createPermit[0].App_permit_Create);
+    if (!hasCreatePermit) {
+      return res.status(401).json({ error: "Unauthorized" });
     }
 
-    await executeQuery("START TRANSACTION");
+    // check mandatory fields
+    if (!task.Task_name) {
+      return res.status(500).json({ error: "Missing mandatory fields: Task name" });
+    }
+
+    // check field lengths
+    if (task.Task_name.length < 0 || task.Task_name.length > 100 || (task.Task_description && task.Task_description < 1 && task.Task_description.length > 255)) {
+      return res.status(500).json({ error: "Invalid task name" });
+    }
+
+    const datetimestamp = createDatetimeStamp();
+    // stamp new note
+    const stamp = `Commented by: ${username}\nTask state: ${task.Task_state}\n${username} created task\nDatetime: ${datetimestamp}`;
+    if (task.newNote) {
+      task.Task_notes = `${stamp}\n${task.newNote}`;
+    } else {
+      task.Task_notes = stamp;
+    }
 
     // create taskId
-    const queryTaskId = "SELECT CONCAT(App_Acronym, '_', App_Rnumber) AS taskId FROM application WHERE App_Acronym = ?";
+    const queryTaskId = `SELECT CONCAT(App_Acronym, '_', App_Rnumber) AS taskId 
+                        FROM application WHERE App_Acronym = ? LOCK IN SHARE MODE`;
     const paramsTaskId = [task.Task_app_Acronym];
     const results = await executeQuery(queryTaskId, paramsTaskId);
     const taskId = results[0].taskId;
@@ -146,7 +178,10 @@ exports.addTask = async (req, res) => {
     const epochCreateDate = Math.floor(createDate.getTime() / 1000);
 
     // add task
-    const queryAddTask = "INSERT INTO task (Task_id, Task_plan, Task_app_Acronym, Task_name, Task_description, Task_notes, Task_state, Task_creator, Task_owner, Task_createDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    const queryAddTask = `INSERT INTO task 
+                        (Task_id, Task_plan, Task_app_Acronym, Task_name, Task_description, 
+                        Task_notes, Task_state, Task_creator, Task_owner, Task_createDate) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
     const paramsAddTask = [taskId, task.Task_plan, task.Task_app_Acronym, task.Task_name, task.Task_description, task.Task_notes, task.Task_state, task.Task_creator, task.Task_owner, epochCreateDate];
     await executeQuery(queryAddTask, paramsAddTask);
 
@@ -188,7 +223,11 @@ exports.getPlanColor = async (req, res) => {
   const params = [Plan_MVP_name];
   try {
     const color = await executeQuery(query, params);
-    res.status(200).json(color[0].Plan_color);
+    if (color[0]) {
+      return res.status(200).json(color[0].Plan_color);
+    } else {
+      return res.status(200).json("#000000");
+    }
   } catch (error) {
     console.log(error);
     res.status(500).json({ error: "Failed to get plan color" });
@@ -198,22 +237,50 @@ exports.getPlanColor = async (req, res) => {
 exports.updateTask = async (req, res) => {
   try {
     const { task } = req.body;
+    const username = await getUNameFromToken(req.cookies.token);
 
     // get old task
     const oldTask = await getTask(task.Task_id);
 
+    // check permits
+    await executeQuery("START TRANSACTION");
+    const query = `SELECT App_permit_Open, App_permit_ToDoList, App_permit_Doing, App_permit_Done 
+                  FROM application WHERE App_Acronym = ? LOCK IN SHARE MODE`;
+    const params = [task.Task_app_Acronym];
+    const permissions = await executeQuery(query, params);
+
+    const hasOpenPermit = await checkGroup(username, permissions[0].App_permit_Open);
+    const hasToDoListPermit = await checkGroup(username, permissions[0].App_permit_ToDoList);
+    const hasDoingPermit = await checkGroup(username, permissions[0].App_permit_Doing);
+    const hasDonePermit = await checkGroup(username, permissions[0].App_permit_Done);
+    if ((oldTask.Task_state === "Open" && !hasOpenPermit) || (oldTask.Task_state === "Todo" && !hasToDoListPermit) || (oldTask.Task_state === "Doing" && !hasDoingPermit) || (oldTask.Task_state === "Done" && !hasDonePermit)) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const datetimestamp = createDatetimeStamp();
+    // stamp new note
+    let stamp;
+    if (oldTask.Task_state !== task.Task_state) {
+      stamp = `Action by: ${username}\nTask state changed from ${oldTask.Task_state} to ${task.Task_state}\nDatetime: ${datetimestamp}`;
+    } else {
+      stamp = `Commented by: ${username}\nTask state: ${task.Task_state}\nDatetime: ${datetimestamp}`;
+    }
     if (task.newNote) {
-      const username = await getUNameFromToken(req.cookies.token);
-      const datetimestamp = createDatetimeStamp();
-      // stamp new note
-      const stamp = `Commented by: ${username}\nTask state: ${task.Task_state}\nDatetime: ${datetimestamp}`;
       if (task.Task_notes === null || task.Task_notes === "") {
         task.Task_notes = `${stamp}\n${task.newNote}`;
       } else {
         task.Task_notes = `${oldTask.Task_notes}\n\n${stamp}\n${task.newNote}`;
       }
+    } else {
+      task.Task_notes = `${task.Task_notes}\n\n${stamp}`;
     }
 
+    // check promote/demote (demote: forfeit, reject)
+    if ((task.Task_state === "Todo" && oldTask.Task_state === "Doing") || (task.Task_state === "Doing" && oldTask.Task_state === "Done")) {
+      task.Task_owner = oldTask.Task_owner;
+    }
+
+    // update task query
     const queryUpdateTask = "UPDATE task SET Task_plan = ?, Task_notes = ?, Task_state = ?, Task_owner = ? WHERE Task_id = ?";
     const paramsUpdateTask = [task.Task_plan, task.Task_notes, task.Task_state, task.Task_owner, task.Task_id];
     await executeQuery(queryUpdateTask, paramsUpdateTask);
@@ -231,9 +298,11 @@ exports.updateTask = async (req, res) => {
       // email users in permit_Done
       sendEmail([emails], "Task Completed", `Your task ${task.Task_name} has been completed.`);
     }
+    await executeQuery("COMMIT");
     res.status(200).json({ success: "Task updated successfully" });
   } catch (error) {
     console.log(error);
+    await executeQuery("ROLLBACK");
     res.status(500).json({ error: "Failed to update task" });
   }
 };
@@ -253,7 +322,10 @@ exports.updateApplication = async (req, res) => {
     const endDate = new Date(application.App_endDate);
     const epochEndDate = Math.floor(endDate.getTime() / 1000);
 
-    const query = "UPDATE application SET App_startDate = ?, App_endDate = ?, App_Description = ?, App_permit_Create = ?, App_permit_Open = ?, App_permit_toDoList = ?, App_permit_Doing = ?, App_permit_Done = ? WHERE App_Acronym = ?";
+    const query = `UPDATE application SET App_startDate = ?, App_endDate = ?, 
+                  App_Description = ?, App_permit_Create = ?, App_permit_Open = ?, 
+                  App_permit_toDoList = ?, App_permit_Doing = ?, App_permit_Done = ? 
+                  WHERE App_Acronym = ?`;
     const params = [epochStartDate, epochEndDate, application.App_Description, application.App_permit_Create, application.App_permit_Open, application.App_permit_toDoList, application.App_permit_Doing, application.App_permit_Done, application.App_Acronym];
     await executeQuery(query, params);
     res.status(200).json({ success: "Application updated successfully" });
@@ -275,7 +347,9 @@ exports.checkPermits = async (req, res) => {
     const { App_Acronym } = req.body;
 
     // retrieve app permissions
-    const query = "SELECT App_permit_Create, App_permit_Open, App_permit_toDoList, App_permit_Doing, App_permit_Done FROM application WHERE App_Acronym = ?";
+    const query = `SELECT App_permit_Create, App_permit_Open, App_permit_toDoList, 
+                  App_permit_Doing, App_permit_Done FROM application 
+                  WHERE App_Acronym = ?`;
     const params = [App_Acronym];
     const appPermissions = await executeQuery(query, params);
 
@@ -297,19 +371,6 @@ exports.checkPermits = async (req, res) => {
   } catch (error) {
     console.log(error);
     res.status(500).json({ error: "Failed to check permits" });
-  }
-};
-
-exports.getNewTaskId = async (req, res) => {
-  try {
-    const { App_Acronym } = req.body;
-    const query = "SELECT CONCAT(App_Acronym, '_', App_Rnumber) AS taskId FROM application WHERE App_Acronym = ?";
-    const params = [App_Acronym];
-    const results = await executeQuery(query, params);
-    res.status(200).json(results[0]);
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ error: "Failed to get new task id" });
   }
 };
 
@@ -367,29 +428,29 @@ function formatDateDDMMYYYY(dateString) {
 }
 
 function sendEmail(recipients, subject, text) {
-  // var transporter = nodemailer.createTransport({
-  //   service: "gmail",
-  //   auth: {
-  //     user: process.env.EMAIL_USER,
-  //     pass: process.env.EMAIL_PASS
-  //   }
-  // });
+  var transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
 
-  // var mailOptions = {
-  //   from: process.env.EMAIL_USER,
-  //   to: recipients.join(", "),
-  //   subject: subject,
-  //   text: text
-  // };
+  var mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: recipients.join(", "),
+    subject: subject,
+    text: text
+  };
 
-  // transporter.sendMail(mailOptions, function (error, info) {
-  //   if (error) {
-  //     console.log(error);
-  //   } else {
-  //     console.log("Email sent: " + info.response);
-  //   }
-  // });
-  console.log("mock emailing");
+  transporter.sendMail(mailOptions, function (error, info) {
+    if (error) {
+      console.log(error);
+    } else {
+      console.log("Email sent: " + info.response);
+    }
+  });
+  // console.log("mock emailing");
 }
 
 async function getUNameFromToken(token) {

@@ -117,11 +117,11 @@
     <h1>Create Application</h1>
     <div class="form-group">
       <label for="app-acronym">App Acronym:</label>
-      <input type="text" name="app-acronym" placeholder="App Acronym" bind:value={newApp.App_Acronym}/>
+      <input type="text" name="app-acronym" placeholder="App Acronym" bind:value={newApp.App_Acronym} maxlength=50/>
     </div>
     <div class="form-group">
       <label for="app-rnumber">App R number:</label>
-      <input type="text" name="app-rumber" placeholder="App R number" bind:value={newApp.App_Rnumber}/>
+      <input type="number" name="app-rumber" placeholder="App R number" bind:value={newApp.App_Rnumber}/>
     </div>
     <div class="form-group">
       <label for="app-description">App Description:</label>
@@ -168,7 +168,7 @@
       </select>
     </div>
     <div class="form-group">
-      <label for="done">Permit Create:</label>
+      <label for="done">Permit Done:</label>
       <select name="done" bind:value={newApp.App_permit_Done}>
         {#each groups as group}
           <option value={group}>{group}</option>
