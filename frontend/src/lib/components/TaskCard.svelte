@@ -8,11 +8,9 @@
 
   export let taskDetails = [];
   let newNote;
-
   async function getTaskDetails() {
     try {
       const response = await api.post("/api/task/details", {taskId:taskDetails.Task_id} ,{ withCredentials: true });
-      console.log(response.data);
       return response.data;
     } catch (error) {
       if (error.status === 401) {
@@ -25,6 +23,9 @@
   // for button disable
   let planIsChanged = false;
   function planUpdate () {
+    if(currentPlan === ""){
+      currentPlan = null;
+    }
     if (currentPlan !== taskDetails.Task_plan)
       planIsChanged = true;
     else {
@@ -35,6 +36,7 @@
   let taskColor = "white";
   async function updateColor(){
     if(taskDetails.Task_plan == null){
+      taskColor = "#FFFFFF";
       return;
     }
     try {
@@ -66,8 +68,8 @@
     showTaskDetailsModal = !showTaskDetailsModal;
     await checkPermits();
     taskDetails = await getTaskDetails();
+    currentPlan = taskDetails.Task_plan;
     plans = await getPlans();
-    console.log(plans);
   }
 
   async function handleUpdateTask(newState) {
@@ -99,6 +101,9 @@
       toast.success(response.data.success);
       newNote = "";
       taskDetails = await getTaskDetails();
+      currentPlan = taskDetails.Task_plan;
+      tempDetails = taskDetails;
+      updateColor();
     } catch (error) {
       if (error.status === 401) {
         goto('/login');
@@ -128,7 +133,7 @@
     }
   }
 
-  const tempDetails = {
+  let tempDetails = {
     taskName: taskDetails.Task_name,
     taskDescription: taskDetails.Task_description,
     taskPlan: taskDetails.Task_plan,
@@ -136,8 +141,7 @@
 
   };
   async function handleCancel() {
-    taskDetails.Task_notes = tempDetails.taskNotes;
-    taskDetails.Task_plan = tempDetails.taskPlan;
+    taskDetails = await getTaskDetails();
     currentPlan = tempDetails.taskPlan;
     newNote = "";
     planIsChanged = false;
@@ -162,6 +166,7 @@
     updateColor();
     plans = await getPlans();
     currentUsername = await getUsername();
+    currentPlan = taskDetails.Task_plan;
   })
 </script>
 
@@ -249,7 +254,9 @@
     <button on:click={() => handleUpdateTask("Closed")} class="promote" disabled={planIsChanged}>Approve Task</button>
     <button on:click={() => handleUpdateTask("Doing")} class="demote">Reject Task</button>
   {/if}
-  {#if (taskDetails.Task_state === "Open" && hasPermits.hasOpenPermit) || (taskDetails.Task_state === "Todo" && hasPermits.hasToDoListPermit) || (taskDetails.Task_state === "Doing" && hasPermits.hasDoingPermit) || (taskDetails.Task_state === "Done" && hasPermits.hasDonePermit)}
+  {#if (taskDetails.Task_state === "Open" && hasPermits.hasOpenPermit)}
+  <button on:click={handleSaveTask}>Save</button>
+  {:else if (taskDetails.Task_state === "Todo" && hasPermits.hasToDoListPermit) || (taskDetails.Task_state === "Doing" && hasPermits.hasDoingPermit) || (taskDetails.Task_state === "Done" && hasPermits.hasDonePermit)}
   <button on:click={handleSaveTask} disabled={planIsChanged}>Save</button>
   {/if}
   <button on:click={handleCancel}>Cancel</button>
@@ -312,7 +319,7 @@
   .update-task-modal {
     text-align: left;
     display: grid;
-    grid-template-columns: 1fr 4fr;
+    grid-template-columns: 1fr 2fr;
     height: 500px;
   }
 
@@ -408,7 +415,9 @@
 .readonly-group pre {
   word-wrap: break-word;
   word-break: break-all;
-  white-space: normal;
+  overflow-y: scroll;
+  width: 300px;
+  max-height: 150px;
 }
 
 </style>

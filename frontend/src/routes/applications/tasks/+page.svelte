@@ -440,7 +440,7 @@
   .add-task-modal {
     text-align: left;
     display: grid;
-    grid-template-columns: 1fr 4fr;
+    grid-template-columns: 1fr 2fr;
     height: 500px;
   }
 
@@ -466,6 +466,8 @@
     margin-top: 10px;
   }
 
+  
+
   .readonly-group {
     display: flex;
     margin-top: 10px;
@@ -488,8 +490,11 @@
     padding: 2px;
   }
 
-  textarea {
+  .form-group textarea {
     resize: none;
+    width: 200px;
+    height: 90px;
+    overflow: scroll;
   }
 
   .task-notes {

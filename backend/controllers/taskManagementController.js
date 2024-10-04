@@ -6,13 +6,7 @@ const nodemailer = require("nodemailer");
 exports.getApplications = async (req, res) => {
   try {
     const username = await getUNameFromToken(req.cookies.token);
-    const query = `SELECT DISTINCT a.* FROM application a JOIN usergroup u 
-                  ON u.user_group = a.App_permit_Create
-                  OR u.user_group = a.App_permit_Open
-                  OR u.user_group = a.App_permit_toDoList
-                  OR u.user_group = a.App_permit_Doing
-                  OR u.user_group = a.App_permit_Done
-                  WHERE u.username = ?`;
+    const query = "SELECT * FROM application";
     const params = [username];
     const applications = await executeQuery(query, params);
     for (app of applications) {
@@ -167,7 +161,7 @@ exports.addTask = async (req, res) => {
 
     // create taskId
     const queryTaskId = `SELECT CONCAT(App_Acronym, '_', App_Rnumber) AS taskId 
-                        FROM application WHERE App_Acronym = ? LOCK IN SHARE MODE`;
+                        FROM application WHERE App_Acronym = ? FOR UPDATE`;
     const paramsTaskId = [task.Task_app_Acronym];
     const results = await executeQuery(queryTaskId, paramsTaskId);
     const taskId = results[0].taskId;
@@ -226,7 +220,7 @@ exports.getPlanColor = async (req, res) => {
     if (color[0]) {
       return res.status(200).json(color[0].Plan_color);
     } else {
-      return res.status(200).json("#000000");
+      return res.status(200).json("#FFFFFF");
     }
   } catch (error) {
     console.log(error);
@@ -261,18 +255,29 @@ exports.updateTask = async (req, res) => {
     // stamp new note
     let stamp;
     if (oldTask.Task_state !== task.Task_state) {
-      stamp = `Action by: ${username}\nTask state changed from ${oldTask.Task_state} to ${task.Task_state}\nDatetime: ${datetimestamp}`;
+      if (task.Task_plan !== oldTask.Task_plan) {
+        stamp = `Action by: ${username}\n[Task state changed from ${oldTask.Task_state} to ${task.Task_state}]\n[Task plan changed from ${oldTask.Task_plan || "no plan"} to ${task.Task_plan || "no plan"}]\nDatetime: ${datetimestamp}`;
+      } else {
+        stamp = `Action by: ${username}\n[Task state changed from ${oldTask.Task_state} to ${task.Task_state}]\nDatetime: ${datetimestamp}`;
+      }
     } else {
-      stamp = `Commented by: ${username}\nTask state: ${task.Task_state}\nDatetime: ${datetimestamp}`;
+      if (task.Task_plan !== oldTask.Task_plan) {
+        stamp = `Action by: ${username}\n[Task plan changed from ${oldTask.Task_plan || "no plan"} to ${task.Task_plan || "no plan"}]\nDatetime: ${datetimestamp}`;
+      } else {
+        stamp = `Commented by: ${username}\nTask state: ${task.Task_state}\nDatetime: ${datetimestamp}`;
+      }
     }
+    console.log(stamp);
     if (task.newNote) {
       if (task.Task_notes === null || task.Task_notes === "") {
         task.Task_notes = `${stamp}\n${task.newNote}`;
       } else {
-        task.Task_notes = `${oldTask.Task_notes}\n\n${stamp}\n${task.newNote}`;
+        task.Task_notes = `${stamp}\n${task.newNote}\n\n${oldTask.Task_notes}`;
       }
-    } else {
-      task.Task_notes = `${task.Task_notes}\n\n${stamp}`;
+    } else if (oldTask.Task_state !== task.Task_state) {
+      task.Task_notes = `${stamp}\n\n${task.Task_notes}`;
+    } else if (task.Task_plan !== oldTask.Task_plan) {
+      task.Task_notes = `${stamp}\n\n${task.Task_notes}`;
     }
 
     // check promote/demote (demote: forfeit, reject)
@@ -289,14 +294,14 @@ exports.updateTask = async (req, res) => {
     if (oldState === "Doing" && task.Task_state === "Done") {
       // do email query
       const queryGetEmails = `SELECT a.email FROM accounts a 
-                      JOIN usergroup u ON u.username = a.username 
+                      JOIN usergroup u ON u.username = a.username
                       JOIN application app ON u.user_group = app.App_permit_Done
                       WHERE app.App_Acronym = ?`;
       const paramsGetEmails = [task.Task_app_Acronym];
       const users = await executeQuery(queryGetEmails, paramsGetEmails);
-      const emails = users.map(email => email.email);
+      const emails = users.filter(user => user.email !== "").map(user => user.email);
       // email users in permit_Done
-      sendEmail([emails], "Task Completed", `Your task ${task.Task_name} has been completed.`);
+      sendEmail([emails], `Task: ${task.Task_id} Completed`, `Task: ${task.Task_name} has been completed.`);
     }
     await executeQuery("COMMIT");
     res.status(200).json({ success: "Task updated successfully" });
@@ -380,7 +385,11 @@ exports.getTaskByTaskId = async (req, res) => {
     const query = "SELECT * FROM task WHERE Task_id = ?";
     const params = [taskId];
     const results = await executeQuery(query, params);
-    res.status(200).json(results[0]);
+    let task = results[0];
+    // convert from epoch to date
+    task.Task_createDate = new Date(task.Task_createDate * 1000);
+    task.Task_createDate = formatDateDDMMYYYY(task.Task_createDate);
+    res.status(200).json(task);
   } catch (error) {
     console.log(error);
     res.status(500).json({ error: "Failed to get task by task id" });
