@@ -1,0 +1,38 @@
+# Node modules (should be installed inside the container)
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Logs
+logs
+*.log
+*.log.*
+
+# Test files
+coverage
+*.test.js
+*.spec.js
+
+# Environment files (these should not be in Docker images)
+#.env
+#.env.local
+#.env.development
+#.env.test
+#.env.production
+
+# Build files (if you're using a tool like webpack, these should be built inside the container)
+dist
+build
+
+# Ignore Docker-related files
+Dockerfile
+.dockerignore
+
+# Editor directories and files
+.idea
+.vscode
+*.swp
+
+# OS generated files
+.DS_Store
+Thumbs.db

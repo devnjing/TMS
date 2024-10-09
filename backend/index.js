@@ -24,6 +24,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", accounts, taskManagement);
 app.use("/api/demo", demo);
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

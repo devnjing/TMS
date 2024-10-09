@@ -8,6 +8,8 @@ const dbConfig = {
   database: process.env.DB_NAME
 };
 
+console.log(dbConfig);
+
 const connection = mysql.createConnection(dbConfig);
 
 connection.connect(err => {

@@ -4,32 +4,31 @@ const nodemailer = require("nodemailer");
 /* Status Codes */
 class MsgCode {
   static SUCCESS = "SUCC2001";
-  static INVALID_INPUT = "ERR4001";
-  static ENTRY_EXISTS = "ERR4002";
+  static INVALID_KEY = "ERR4001";
+  static INVALID_INPUT = "ERR4002";
   static INVALID_STATE_CHANGE = "ERR4003";
   static NOT_FOUND = "ERR4004";
   static INVALID_CREDENTIALS = "ERR4005"; // do not have credentials
   static NOT_AUTHORIZED = "ERR4006"; // do not have access rights
   static INTERNAL = "ERR5001";
-  static UNHANDLED = "ERR6001";
 }
 
 exports.createTask = async (req, res) => {
   try {
-    // reject any url with parameters
-    if (Object.keys(req.query).length !== 0) {
-      return res.status(400).json({ msgCode: MsgCode.INVALID_INPUT });
-    }
-
     // reject body with additional fields
     const allowedFields = ["username", "password", "appAcronym", "taskName", "taskNotes", "description", "taskPlan"];
     const bodyFields = Object.keys(req.body);
     const hasExtraFields = bodyFields.some(field => !allowedFields.includes(field));
     if (hasExtraFields) {
-      return res.status(400).json({ msgCode: MsgCode.INVALID_INPUT });
+      return res.status(400).json({ msgCode: MsgCode.INVALID_KEY });
     }
 
     const { username, password, appAcronym, taskName, description, taskNotes, taskPlan } = req.body;
+
+    // check field length
+    if (taskName.length < 1 || taskName.length > 255) {
+      return res.status(400).json({ msgCode: MsgCode.INVALID_INPUT });
+    }
 
     // check mandatory fields
     if (!username || !password) {
@@ -38,23 +37,6 @@ exports.createTask = async (req, res) => {
     if (!appAcronym || !taskName) {
       return res.status(400).json({ msgCode: MsgCode.INVALID_INPUT });
     }
-
-    // check fields with regex
-    // const usernameRegex = /^[a-zA-Z0-9_]{1,50}$/;
-    // if (!usernameRegex.test(username)) {
-    //   return res.json({ msgCode: MsgCode.INVALID_CREDENTIALS });
-    // }
-    // const passwordRegex = /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[^\da-zA-Z]).{8,10}$/;
-    // if (!passwordRegex.test(password)) {
-    //   return res.json({ msgCode: MsgCode.INVALID_CREDENTIALS });
-    // }
-    // const appAcronymRegex = /^[a-zA-Z0-9_]{1,50}$/;
-    // if (!appAcronymRegex.test(appAcronym)) {
-    //   return res.status(400).json({ msgCode: MsgCode.INVALID_INPUT });
-    // }
-    // if (taskName.length < 0 || taskName.length > 255) {
-    //   return res.status(400).json({ msgCode: MsgCode.INVALID_INPUT });
-    // }
 
     // authentication
     const queryGetUser = "SELECT accountStatus, password FROM accounts WHERE username = ?";
@@ -158,18 +140,12 @@ exports.createTask = async (req, res) => {
 
 exports.getTaskByState = async (req, res) => {
   try {
-    // reject any url with parameters
-    if (Object.keys(req.query).length !== 0) {
-      return res.status(400).json({ msgCode: MsgCode.INVALID_INPUT });
-    }
-
     // reject body with additional fields
     const allowedFields = ["username", "password", "taskState", "appAcronym"];
     const bodyFields = Object.keys(req.body);
     const hasExtraFields = bodyFields.some(field => !allowedFields.includes(field));
     if (hasExtraFields) {
-      console.log("here");
-      return res.status(400).json({ msgCode: MsgCode.INVALID_INPUT });
+      return res.status(400).json({ msgCode: MsgCode.INVALID_KEY });
     }
 
     const { username, password, taskState, appAcronym } = req.body;
@@ -180,23 +156,6 @@ exports.getTaskByState = async (req, res) => {
     if (!appAcronym || !taskState) {
       return res.status(400).json({ msgCode: MsgCode.INVALID_INPUT });
     }
-
-    // check fields with regex
-    // const usernameRegex = /^[a-zA-Z0-9_]{1,50}$/;
-    // if (!usernameRegex.test(username)) {
-    //   return res.json({ msgCode: MsgCode.INVALID_CREDENTIALS });
-    // }
-    // const passwordRegex = /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[^\da-zA-Z]).{8,10}$/;
-    // if (!passwordRegex.test(password)) {
-    //   return res.json({ msgCode: MsgCode.INVALID_CREDENTIALS });
-    // }
-    // const appAcronymRegex = /^[a-zA-Z0-9_]{1,50}$/;
-    // if (!appAcronymRegex.test(appAcronym)) {
-    //   return res.json({ msgCode: MsgCode.INVALID_INPUT });
-    // }
-    // if (taskState !== "Open" && taskState !== "Todo" && taskState !== "Doing" && taskState !== "Done" && taskState !== "Closed") {
-    //   return res.json({ msgCode: MsgCode.INVALID_INPUT });
-    // }
 
     // authentication
     const queryGetUser = "SELECT * FROM accounts WHERE username = ?";
@@ -216,7 +175,7 @@ exports.getTaskByState = async (req, res) => {
 
     // get tasks
     const validTaskStates = ["open", "todo", "doing", "done", "closed"];
-    if (!validTaskStates.includes(taskState.toLowerCase())) {
+    if (!validTaskStates.includes(taskState)) {
       return res.status(400).json({ msgCode: MsgCode.INVALID_INPUT });
     }
 
@@ -236,34 +195,15 @@ exports.getTaskByState = async (req, res) => {
 
 exports.promoteTask2Done = async (req, res) => {
   try {
-    // reject any url with parameters
-    if (Object.keys(req.query).length !== 0) {
-      return res.status(400).json({ msgCode: MsgCode.INVALID_INPUT });
-    }
-
     // reject body with additional fields
     const allowedFields = ["username", "password", "appAcronym", "taskId", "taskNotes"];
     const bodyFields = Object.keys(req.body);
     const hasExtraFields = bodyFields.some(field => !allowedFields.includes(field));
     if (hasExtraFields) {
-      return res.status(400).json({ msgCode: MsgCode.INVALID_INPUT });
+      return res.status(400).json({ msgCode: MsgCode.INVALID_KEY });
     }
 
     const { username, password, appAcronym, taskId, taskNotes } = req.body;
-
-    // check fields with regex
-    // const usernameRegex = /^[a-zA-Z0-9_]{1,50}$/;
-    // if (!usernameRegex.test(username)) {
-    //   return res.json({ msgCode: MsgCode.INVALID_CREDENTIALS });
-    // }
-    // const passwordRegex = /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[^\da-zA-Z]).{8,10}$/;
-    // if (!passwordRegex.test(password)) {
-    //   return res.json({ msgCode: MsgCode.INVALID_CREDENTIALS });
-    // }
-    // const appAcronymRegex = /^[a-zA-Z0-9_]{1,50}$/;
-    // if (!appAcronymRegex.test(appAcronym)) {
-    //   return res.json({ msgCode: MsgCode.INVALID_INPUT });
-    // }
 
     // check mandatory fields
     if (!username || !password) {
