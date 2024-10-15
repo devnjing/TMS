@@ -8,24 +8,26 @@ logs
 *.log
 *.log.*
 
+*.tar
+
 # Test files
 coverage
 *.test.js
 *.spec.js
 
 # Environment files (these should not be in Docker images)
-#.env
-#.env.local
-#.env.development
-#.env.test
-#.env.production
+.env
+.env.local
+.env.development
+.env.test
+.env.production
 
 # Build files (if you're using a tool like webpack, these should be built inside the container)
 dist
 build
 
 # Ignore Docker-related files
-Dockerfile
+Dockerfile.*
 .dockerignore
 
 # Editor directories and files

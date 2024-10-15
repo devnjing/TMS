@@ -1,5 +1,5 @@
 const { executeQuery } = require("../db");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer");
 /* Status Codes */
 class MsgCode {

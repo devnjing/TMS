@@ -11,3 +11,7 @@
 ## things to take note of
 
 for local database, use host.docker.internal instead of localhost to be able to connect from container.
+
+## production run command
+
+`docker run --env-file .env -p 3000:3000 tms tms`

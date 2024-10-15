@@ -1,0 +1,32 @@
+# Use a minimal Node.js image
+FROM node:20-alpine
+
+# Set the working directory
+WORKDIR /app
+
+# Copy tgz file in
+COPY backend-1.0.0.tgz /app/backend-1.0.0.tgz
+
+# Copy app files and install dependencies
+RUN npm install backend-1.0.0.tgz
+
+COPY . .
+
+# use diff to compare the package.json files
+RUN diff /app/package.json /app/node_modules/backend/package.json || exit 1
+
+# flatten dependency tree
+# RUN npm dedupe
+
+# linux commands for moving dependencies
+RUN mv /app/node_modules/backend/node_modules/* /app/node_modules
+RUN rm -rf /app/node_modules/backend/
+
+# Create a non-login user and group (without home directory)
+RUN adduser -D -H appuser
+
+# Switch to the non-login user
+USER appuser
+
+# Start the application
+CMD ["node", "index.js"]
